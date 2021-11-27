@@ -3859,6 +3859,7 @@ class Ui_ExecWin(object):
         # to yonik it
         #
         derWin = cmds.window()
+        cmds.columnLayout()
         self.cmdFilter = CmdFilter(self)
 
         self.pyCmd = cmds.cmdScrollFieldExecuter(
