@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
-
 # uiMaster - A Python plugin for Autodesk Maya
 # Copyright (C) 2016 by Brendan Kelly - Seattle, USA
 #
@@ -71,18 +65,13 @@ __title__ = "uiMaster for Maya"
 #
 import os
 import sys
+import shiboken
 import maya.cmds as cmds
-from pymel import core as pm
 import maya.mel as mel
 import maya.OpenMaya as om
 import maya.OpenMayaUI as omui
 import maya.OpenMayaMPx as omPx
-from Qt import QtCore
-from Qt import QtGui
-from Qt import QtWidgets
-from Qt import _QtUiTools as QtUiTools
-from Qt.QtCompat import wrapInstance
-from Qt.QtCompat import getCppPointer
+from PySide import QtCore, QtGui, QtUiTools
 from functools import partial
 import inspect
 import re
@@ -174,7 +163,7 @@ def makeUiMaster(auto=False):
                 c.close()
             break
 
-    uimDock = QtWidgets.QDockWidget(getMayaMainWindow())
+    uimDock = QtGui.QDockWidget(getMayaMainWindow())
     uimDock.setObjectName(mayaName)
     uimDock.setWindowIcon(QtGui.QPixmap(":/mayaIcon"))
     uimDock.setWindowTitle(__title__)
@@ -222,8 +211,8 @@ Y88b. .d88PY88b. 888888888Y88b. 888Y8b.         X88
 #
 def selfUpdate():
     main = getMayaMainWindow()
-    win = QtWidgets.QMessageBox(main)
-    win.setIcon(QtWidgets.QMessageBox.Information)
+    win = QtGui.QMessageBox(main)
+    win.setIcon(QtGui.QMessageBox.Information)
     win.setWindowTitle("uiMaster Updater")
     targ = "http://www.clamdragon3d.com/s/uiMaster.py"
     try:
@@ -290,7 +279,9 @@ def compileUI(inFile=None):
 def getMayaMainWindow():
     # returns a QWidget wrapper for the main maya window,
     # to allow uiMaster to be parented to it
-    return pm.ui.toQtObject("MayaWindow")
+    mayaWin = omui.MQtUtil.mainWindow()
+    if mayaWin:
+        return shiboken.wrapInstance(long(mayaWin), QtGui.QMainWindow)
     
 
 # remember for entire Maya session
@@ -330,7 +321,7 @@ def addPathToSession(f=None):
 #
 def buildClass(clsName):
     #clsName = parse file arg for class name
-    class UiWidg(clsName, QtWidgets.QMainWindow):
+    class UiWidg(clsName, QtGui.QMainWindow):
         def __init__(self, parent=None):
             super(UiWidg, self).__init__(parent)
             # the compiled .py file has the content,
@@ -695,7 +686,7 @@ class SceneCallbackHandler():
 # Reimplementation of QTabBar - to change tabSizeHint()
 # And make drag & drop between TabBar objects possible
 #
-class TabBar(QtWidgets.QTabBar):
+class TabBar(QtGui.QTabBar):
     def __init__(self, parent):
         self.base = super(TabBar, self)
         self.base.__init__(parent)
@@ -773,7 +764,7 @@ class TabBar(QtWidgets.QTabBar):
             self.dragPix = QtGui.QPixmap.grabWidget(self, rect)
             data.setData("uiTabData", str(stuff))
             data.setParent(self)
-        #self.tabButton(index, QtWidgets.QTabBar.RightSide).hide()
+        #self.tabButton(index, QtGui.QTabBar.RightSide).hide()
         self.dragData = stuff
 
     
@@ -854,7 +845,7 @@ class TabBar(QtWidgets.QTabBar):
             loc = self.mapFromGlobal(QtGui.QCursor.pos())
             offset = loc.x() - self.dragData[2]
             rect.moveLeft(offset)
-            #button = self.tabButton(index, QtWidgets.QTabBar.RightSide)
+            #button = self.tabButton(index, QtGui.QTabBar.RightSide)
             #button.move((rect.right() - 36), button.y())
             p.drawPixmap(rect, self.dragPix)
             del(p)
@@ -862,7 +853,7 @@ class TabBar(QtWidgets.QTabBar):
     def buttonVis(self, state):
         count = self.count()
         for i in range(0, count):
-            b = self.tabButton(i, QtWidgets.QTabBar.RightSide)
+            b = self.tabButton(i, QtGui.QTabBar.RightSide)
             if b:
                 b.setVisible(state)
 
@@ -876,7 +867,7 @@ class TabBar(QtWidgets.QTabBar):
 # Subclass of QGraphicsProxyWidget - 
 # to deal with wheel events and resizing
 #
-class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
+class GraphicsProxy(QtGui.QGraphicsProxyWidget):
     def __init__(self, parent=None, view=None):
         self.base = super(GraphicsProxy, self)
         self.base.__init__(parent)
@@ -898,7 +889,7 @@ class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
         self.base.mousePressEvent(event)
         event.ignore()
         # if there's a popup, ignore so that it will get the event
-        popup = QtWidgets.QApplication.activePopupWidget()
+        popup = QtGui.QApplication.activePopupWidget()
         if not popup:
             event.accept()
 
@@ -937,7 +928,7 @@ class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
         w = self.widget()
         if not w:
             return
-        for a in w.findChildren(QtWidgets.QAction):
+        for a in w.findChildren(QtGui.QAction):
             if state:
                 valid = a.property("uiMasterEnabled")
                 if valid is not None:
@@ -975,7 +966,7 @@ class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
 # it resizes the widget (via proxy) that it displays
 # Also catches focusIn/focusOut events to enable/disable current proxy
 #
-class WidgProxyView(QtWidgets.QGraphicsView):
+class WidgProxyView(QtGui.QGraphicsView):
     def __init__(self, scene=None, parent=None, pane=None):
         self.base = super(WidgProxyView, self)
         self.base.__init__(scene, parent)
@@ -1081,7 +1072,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
         if not self.prevProxy or not self.prevProxy.widget():
             return
         widg = self.prevProxy.widget()
-        newF = QtWidgets.QApplication.focusWidget()
+        newF = QtGui.QApplication.focusWidget()
         isSelf = newF is self
 
         # when widgets vanish, they cause fatal errors upon
@@ -1097,7 +1088,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
         # due to Qt bug with bypassgraphicsproxy flag and scroll areas.
         # Then ensure focus is sent back to the uiView
         if not isSelf:
-            modal = QtWidgets.QApplication.activeModalWidget()
+            modal = QtGui.QApplication.activeModalWidget()
             if modal:
                 self.forceScrollAreaUpdate(modal)
                 modal.destroyed.connect(self.forceRefocus)
@@ -1105,7 +1096,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
                 # NOW it's safe to check if focus is a child,
                 # but newF may still be None
                 if not newF:
-                    newF = QtWidgets.QApplication.activeWindow()
+                    newF = QtGui.QApplication.activeWindow()
                 isChild = newF in widg.findChildren(type(newF))
                 if isChild:
                     win = newF.window()
@@ -1123,7 +1114,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
         # this is the case for popups - focus IS self still.
         # docs say both parent and popup are "active window"
         elif event.reason() == QtCore.Qt.FocusReason.PopupFocusReason:
-            popup = QtWidgets.QApplication.activePopupWidget()
+            popup = QtGui.QApplication.activePopupWidget()
             self.forceScrollAreaUpdate(popup)
             # graphicsScene item grabs mouse events,
             # and when the popup "steals" the mouseReleaseEvent,
@@ -1145,7 +1136,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
     # 
     def forceScrollAreaUpdate(self, win):
         self.forceScrollAreaInstantiation(win)
-        scrollAreas = win.findChildren(QtWidgets.QAbstractScrollArea)
+        scrollAreas = win.findChildren(QtGui.QAbstractScrollArea)
         for a in scrollAreas:
             v = a.viewport()
             # get both bars
@@ -1272,7 +1263,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             # send dragLeave enter to previous target
             dragTarget = w.property("dragTarget")
             if dragTarget:
-                QtWidgets.QApplication.sendEvent(
+                QtGui.QApplication.sendEvent(
                                     dragTarget, QtGui.QDragLeaveEvent())
             # Send enter event to new target and propogate up
             self.proxyDrag = self.tryEnterEvent(event, target, w)
@@ -1300,7 +1291,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             w = self.currProxy().widget()
             #w.setEnabled(False)
             dragTarget = w.property("dragTarget")
-            QtWidgets.QApplication.sendEvent(
+            QtGui.QApplication.sendEvent(
                                 dragTarget, QtGui.QDragLeaveEvent())
             self.proxyDrag = False
             w.setProperty("dragTarget", None)
@@ -1342,7 +1333,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
 
 
     def sendDragDropEvent(self, event, widgEvent, target):
-        QtWidgets.QApplication.sendEvent(target, widgEvent)
+        QtGui.QApplication.sendEvent(target, widgEvent)
         event.setAccepted(widgEvent.isAccepted())
         return event.isAccepted()
 
@@ -1398,7 +1389,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
                 targ = w.childAt(pos)
                 ttEvent = QtGui.QHelpEvent(t, pos, gPos)
 
-                QtWidgets.QApplication.sendEvent(targ, ttEvent)
+                QtGui.QApplication.sendEvent(targ, ttEvent)
                 event.setAccepted(ttEvent.isAccepted())
                 return event.isAccepted()
             
@@ -1427,7 +1418,7 @@ Y88b. .d88P888888       888  888888  888Y8b.
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 """
-class UiPane(QtWidgets.QWidget):
+class UiPane(QtGui.QWidget):
     def __init__(self, parent, vIndex, hIndex, uim):
         self.base = super(UiPane, self)
         self.base.__init__(parent)
@@ -1444,38 +1435,38 @@ class UiPane(QtWidgets.QWidget):
         self.fileDrop = False
         self.setAcceptDrops(True)
 
-        self.verticalLayout = QtWidgets.QVBoxLayout(self)
+        self.verticalLayout = QtGui.QVBoxLayout(self)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout.setSpacing(0)
         self.setLayout(self.verticalLayout)
 
-        self.welcomeScreen = QtWidgets.QWidget(self)
-        self.layout = QtWidgets.QVBoxLayout(self.welcomeScreen)
+        self.welcomeScreen = QtGui.QWidget(self)
+        self.layout = QtGui.QVBoxLayout(self.welcomeScreen)
         self.welcomeScreen.setLayout(self.layout)
-        self.label = QtWidgets.QLabel("Drag and drop tabs or files here.", 
+        self.label = QtGui.QLabel("Drag and drop tabs or files here.", 
                                     self.welcomeScreen)
         self.label.setAlignment(QtCore.Qt.AlignCenter)
         self.layout.addWidget(self.label)
         self.layout.setAlignment(QtCore.Qt.AlignCenter)
-        self.horiz = QtWidgets.QHBoxLayout(self.welcomeScreen)
+        self.horiz = QtGui.QHBoxLayout(self.welcomeScreen)
         self.layout.addLayout(self.horiz)
-        self.button = QtWidgets.QPushButton(self.welcomeScreen)
+        self.button = QtGui.QPushButton(self.welcomeScreen)
         self.button.setText("Delete Pane")
         self.button.setToolTip("Delete this pane")
-        self.button.setSizePolicy(QtWidgets.QSizePolicy.Maximum, 
-                                    QtWidgets.QSizePolicy.Maximum)
+        self.button.setSizePolicy(QtGui.QSizePolicy.Maximum, 
+                                    QtGui.QSizePolicy.Maximum)
         self.horiz.addWidget(self.button)
         self.verticalLayout.addWidget(self.welcomeScreen)
 
         # uiWidget - tabbar and uiview
-        self.uiWidget = QtWidgets.QWidget(self)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.uiWidget = QtGui.QWidget(self)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.uiWidget.sizePolicy().hasHeightForWidth())
         self.uiWidget.setSizePolicy(sizePolicy)
         self.uiWidget.setObjectName("uiWidget")
-        self.meatLayout = QtWidgets.QVBoxLayout(self.uiWidget)
+        self.meatLayout = QtGui.QVBoxLayout(self.uiWidget)
         self.uiWidget.setLayout(self.meatLayout)
         self.meatLayout.setContentsMargins(0, 0, 0, 0)
         self.meatLayout.setSpacing(0)
@@ -1486,8 +1477,8 @@ class UiPane(QtWidgets.QWidget):
         #
         self.uiTabBar = TabBar(self.uiWidget)
         self.uiTabBar.pane = self
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, 
-            QtWidgets.QSizePolicy.Fixed)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.uiTabBar.sizePolicy().hasHeightForWidth())
@@ -1499,17 +1490,17 @@ class UiPane(QtWidgets.QWidget):
 
         self.uiView = WidgProxyView(self.uim.uiScene, self.uiWidget, self)
         self.uiView.setMinimumSize(QtCore.QSize(20, 20))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, 
-            QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Expanding)
         self.uiView.setSizePolicy(sizePolicy)
         self.uiView.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
         self.uiView.setAcceptDrops(True)
         self.uiView.setStyleSheet("")
         self.uiView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.uiView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.uiView.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        #self.uiView.setFrameShape(QtWidgets.QFrame.Shape.Box)
-        self.uiView.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
+        self.uiView.setFrameShape(QtGui.QFrame.Shape.NoFrame)
+        #self.uiView.setFrameShape(QtGui.QFrame.Shape.Box)
+        self.uiView.setFrameShadow(QtGui.QFrame.Shadow.Raised)
         self.uiView.setObjectName("uiView")
         self.meatLayout.addWidget(self.uiView)
         self.welcomeScreen.show()
@@ -1941,11 +1932,11 @@ class UiFileHandler(QtCore.QObject):
                 if ui or py or mel:
                     files.append(os.altsep.join((d, e)))
         if not files:
-            win = QtWidgets.QMessageBox(self.parent())
+            win = QtGui.QMessageBox(self.parent())
             win.setWindowTitle("No UIs found")
             win.setText("Autosearch did not find any UIs"
                         "\n     in referenced directories.")
-            win.addButton("Ok", QtWidgets.QMessageBox.AcceptRole)
+            win.addButton("Ok", QtGui.QMessageBox.AcceptRole)
             win.exec_()
             win.setParent(None)
         return files
@@ -1954,7 +1945,7 @@ class UiFileHandler(QtCore.QObject):
     # Open a file browser for the user to choose a GUI file
     #
     def uiFileBrowser(self):
-        fileWin = QtWidgets.QFileDialog(self.parent(), 
+        fileWin = QtGui.QFileDialog(self.parent(), 
                     filter="Maya UI Files (*.ui *.py *.mel)")
         if fileWin.exec_():
             tarUI = fileWin.selectedFiles()
@@ -1969,16 +1960,16 @@ class UiFileHandler(QtCore.QObject):
                     loadedUIs.append((x, p))
         for x, p in loadedUIs:
             if tarUI and tarUI[0] in x[1]:
-                win = QtWidgets.QMessageBox(self.parent())
+                win = QtGui.QMessageBox(self.parent())
                 win.setWindowTitle("Duplicate file")
-                win.setIcon(QtWidgets.QMessageBox.Warning)
+                win.setIcon(QtGui.QMessageBox.Warning)
                 win.setText("The selected file has already been loaded "
                         "into uiMaster!\n\nMultiple copies of the same UI can "
                         "cause unwanted behavior.")
-                win.addButton("Load anyway", QtWidgets.QMessageBox.AcceptRole)
-                win.addButton("Go to", QtWidgets.QMessageBox.YesRole)
-                win.addButton("Choose another file", QtWidgets.QMessageBox.NoRole)
-                win.addButton("Cancel", QtWidgets.QMessageBox.RejectRole)
+                win.addButton("Load anyway", QtGui.QMessageBox.AcceptRole)
+                win.addButton("Go to", QtGui.QMessageBox.YesRole)
+                win.addButton("Choose another file", QtGui.QMessageBox.NoRole)
+                win.addButton("Cancel", QtGui.QMessageBox.RejectRole)
                 win.exec_()
                 choice = win.clickedButton().text()
                 if choice == "Choose another file":
@@ -2090,7 +2081,7 @@ class UiFileHandler(QtCore.QObject):
         members = inspect.getmembers(mod, inspect.isclass)
         for m in members:
             # directly compiled QT code does NOT inherit QWidgets
-            #if issubclass(m[1], QtWidgets.QWidget):
+            #if issubclass(m[1], QtGui.QWidget):
             if m[0].startswith("Ui_"):
                 # accepted as compiled QT
                 clsList.append(m)
@@ -2105,17 +2096,17 @@ class UiFileHandler(QtCore.QObject):
             
             # Window to present user with found UIs
             if not acceptAll and not quiet:
-                win = QtWidgets.QMessageBox(self.parent())
+                win = QtGui.QMessageBox(self.parent())
                 win.setWindowTitle("Load specified widget?")
-                win.setIcon(QtWidgets.QMessageBox.Question)
+                win.setIcon(QtGui.QMessageBox.Question)
                 win.setText("Found {0} class(es) recognized\n"
                             "as compiled QT widget(s).\n\n"
                             "Widget {1} of {0}: \"{2}\".\n\n"
                             "Load?".format(len(clsList), i, clsName))
-                win.addButton("Load", QtWidgets.QMessageBox.AcceptRole)
-                win.addButton("Load all", QtWidgets.QMessageBox.YesRole)
-                win.addButton("Skip", QtWidgets.QMessageBox.NoRole)
-                win.addButton("Cancel", QtWidgets.QMessageBox.RejectRole)
+                win.addButton("Load", QtGui.QMessageBox.AcceptRole)
+                win.addButton("Load all", QtGui.QMessageBox.YesRole)
+                win.addButton("Skip", QtGui.QMessageBox.NoRole)
+                win.addButton("Cancel", QtGui.QMessageBox.RejectRole)
                 win.exec_()
                 response = win.clickedButton().text()
                 if response == "Load all":
@@ -2152,9 +2143,9 @@ class UiFileHandler(QtCore.QObject):
         msg = ("No new UI found from running file: \n\n{0}\n\nMaybe a "
                 "MEL or Python command is needed?\n\nEnter any "
                 "additional code in the Script Box.".format(f))
-        win = QtWidgets.QMessageBox(self.parent())
+        win = QtGui.QMessageBox(self.parent())
         win.setWindowTitle("No UI found")
-        win.setIcon(QtWidgets.QMessageBox.Question)
+        win.setIcon(QtGui.QMessageBox.Question)
         win.setText(msg)
         win.exec_()
         if not sWin.stackedWidget.currentWidget() is cmdWidg:
@@ -2210,7 +2201,7 @@ class ChildFocusFilter(QtCore.QObject):
             # in that case, disable proxy widget
             # active does not exist if the window was just closed -
             # in that case, send focus back to uiView
-            act = QtWidgets.QApplication.activeWindow()
+            act = QtGui.QApplication.activeWindow()
             if act:
                 self.parent().currProxy().widget().setEnabled(False)
                 #self.parent().currProxy().setHotkeysEnabled(False)
@@ -2232,7 +2223,7 @@ class ActiveWinFilter(QtCore.QObject):
         uiMaster = self.parent()
         main = getMayaMainWindow()
         if event.type() == QtCore.QEvent.ActivationChange:
-            widg = QtWidgets.QApplication.activeWindow()
+            widg = QtGui.QApplication.activeWindow()
             if widg in main.children() and widg is not obj:
                 pane = uiMaster.findBestPane()
                 pane.widgToTab(widg, widg.windowTitle(), ("internal", widg))
@@ -2279,7 +2270,7 @@ class HotkeyFilter(QtCore.QObject):
                        QtCore.Qt.Key_3: 2, QtCore.Qt.Key_4: 3,
                        QtCore.Qt.Key_5: 4, QtCore.Qt.Key_6: 5,
                        QtCore.Qt.Key_7: 6, QtCore.Qt.Key_8: 7}
-            m = QtWidgets.QApplication.mouseButtons()
+            m = QtGui.QApplication.mouseButtons()
             rmb = (m == QtCore.Qt.RightButton)
             k = event.key()
             if rmb and k in hotkeys.keys():
@@ -2311,7 +2302,7 @@ class HotkeyFilter(QtCore.QObject):
         par = self.parent( )
         pos = QtGui.QCursor.pos()
         # widg is the marking menu if it exists, or widget under mouse
-        widg = QtWidgets.QApplication.widgetAt(pos)
+        widg = QtGui.QApplication.widgetAt(pos)
         if widg and not par.hotkeying:
             # widget under mouse gets the event filter in all cases
             # but one: uiM is floating and the click is in Maya.
@@ -2330,7 +2321,7 @@ class HotkeyFilter(QtCore.QObject):
 class HotkeyRefocusFilter(QtCore.QObject):
     def eventFilter(self, obj, event):
         if (self.parent().hotkeying 
-                and QtWidgets.QApplication.mouseButtons() != QtCore.Qt.RightButton):
+                and QtGui.QApplication.mouseButtons() != QtCore.Qt.RightButton):
             par = self.parent()
             par.hotkeying = False
             par.activateWindow()
@@ -2401,15 +2392,15 @@ class Ui_uiMaster(object):
     def setupUi(self, uiMaster):    
         uiMaster.setObjectName("uiMaster")
         uiMaster.resize(300, 485)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(uiMaster.sizePolicy().hasHeightForWidth())
         uiMaster.setSizePolicy(sizePolicy)
         uiMaster.setAcceptDrops(True)
         self.setWindowFlags(QtCore.Qt.Widget)
-        self.centralwidget = QtWidgets.QWidget(uiMaster)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.centralwidget = QtGui.QWidget(uiMaster)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.centralwidget.sizePolicy().hasHeightForWidth())
@@ -2417,19 +2408,19 @@ class Ui_uiMaster(object):
         self.centralwidget.setAcceptDrops(True)
         self.centralwidget.setStyleSheet("")
         self.centralwidget.setObjectName("centralwidget")
-        self.verticalLayout_4 = QtWidgets.QVBoxLayout(self.centralwidget)
+        self.verticalLayout_4 = QtGui.QVBoxLayout(self.centralwidget)
         self.verticalLayout_4.setContentsMargins(1, 1, 1, 1)
         self.verticalLayout_4.setSpacing(0)
         self.verticalLayout_4.setObjectName("verticalLayout_4")
 
-        #self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
+        #self.scrollArea = QtGui.QScrollArea(self.centralwidget)
         #self.scrollArea.setWidgetResizable(True)
         #self.scrollArea.setContentsMargins(0, 0, 0, 0)
         #self.verticalLayout_4.addWidget(self.scrollArea)
 
-        self.mainSplitter = QtWidgets.QSplitter(self.centralwidget)
+        self.mainSplitter = QtGui.QSplitter(self.centralwidget)
         self.mainSplitter.setOrientation(QtCore.Qt.Vertical)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Ignored, QtGui.QSizePolicy.Ignored)
         self.mainSplitter.setSizePolicy(sizePolicy)
         self.verticalLayout_4.addWidget(self.mainSplitter)
         self.mainSplitter.splitterMoved.connect(self.paneMoveResize)
@@ -2441,7 +2432,7 @@ class Ui_uiMaster(object):
         self.mainSplitter.setStyleSheet(ss)
         #self.scrollArea.setWidget(self.mainSplitter)
 
-        self.uiScene = QtWidgets.QGraphicsScene(self.mainSplitter)
+        self.uiScene = QtGui.QGraphicsScene(self.mainSplitter)
 
         self.newPaneWin = PaneOverlay(self)
         self.newPaneWin.splitter = self.mainSplitter
@@ -2455,7 +2446,7 @@ class Ui_uiMaster(object):
         self.defaultPane = self.defaultRow.widget(0)
 
         # This is the welcomeScreen for defaultPane
-        self.welcomeScreen = QtWidgets.QLabel(self.centralwidget)
+        self.welcomeScreen = QtGui.QLabel(self.centralwidget)
         self.welcomeScreen.setEnabled(False)
         self.welcomeScreen.setMinimumSize(155, 40)
         font = QtGui.QFont()
@@ -2473,7 +2464,7 @@ class Ui_uiMaster(object):
         #
         uiMaster.setCentralWidget(self.centralwidget)
         
-        self.toolBar = QtWidgets.QToolBar(uiMaster)
+        self.toolBar = QtGui.QToolBar(uiMaster)
         self.toolBar.setStyleSheet("QToolButton { width: 20px; height: 20px; }")
         self.toolBar.layout().setContentsMargins(1, 1, 1, 1)
         self.toolBar.layout().setSpacing(3)
@@ -2481,43 +2472,43 @@ class Ui_uiMaster(object):
         self.toolBar.setFloatable(False)
         self.toolBar.setObjectName("toolBar")
         self.addToolBar(QtCore.Qt.TopToolBarArea, self.toolBar)
-        self.separatorWidg3 = QtWidgets.QWidget(uiMaster)
+        self.separatorWidg3 = QtGui.QWidget(uiMaster)
         self.separatorWidg3.setFixedSize(6, 6)
         self.toolBar.addWidget(self.separatorWidg3)
-        self.actionAutoLoad_UIs = QtWidgets.QAction(uiMaster)
+        self.actionAutoLoad_UIs = QtGui.QAction(uiMaster)
         self.actionAutoLoad_UIs.setText("")
         self.actionAutoLoad_UIs.setObjectName("actionAutoLoad_UIs")
-        self.actionManually_Load_UI = QtWidgets.QAction(uiMaster)
+        self.actionManually_Load_UI = QtGui.QAction(uiMaster)
         self.actionManually_Load_UI.setText("")
         self.actionManually_Load_UI.setIconText("")
         self.actionManually_Load_UI.setObjectName("actionManually_Load_UI")
-        self.actionDock_Native_UIs = QtWidgets.QAction(uiMaster)
+        self.actionDock_Native_UIs = QtGui.QAction(uiMaster)
         self.actionDock_Native_UIs.setText("")
         self.actionDock_Native_UIs.setObjectName("actionDock_Native_UIs")
-        self.actionScript_Window = QtWidgets.QAction(uiMaster)
+        self.actionScript_Window = QtGui.QAction(uiMaster)
         self.actionScript_Window.setText("")
         self.actionScript_Window.setObjectName("actionScript_Window")
-        self.actionClose = QtWidgets.QAction(uiMaster)
+        self.actionClose = QtGui.QAction(uiMaster)
         self.actionClose.setObjectName("actionClose")
-        self.actionAddPanes = QtWidgets.QAction(uiMaster)
+        self.actionAddPanes = QtGui.QAction(uiMaster)
         self.actionAddPanes.setText("")
         self.actionAddPanes.setObjectName("actionAddPanes")
-        self.actionSettings = QtWidgets.QAction(uiMaster)
+        self.actionSettings = QtGui.QAction(uiMaster)
         self.actionSettings.setText("")
         self.actionSettings.setObjectName("actionSettings")
-        self.actionInfo = QtWidgets.QAction(uiMaster)
+        self.actionInfo = QtGui.QAction(uiMaster)
         self.actionInfo.setText("")
         self.actionInfo.setObjectName("actionInfo")
         self.toolBar.addAction(self.actionAutoLoad_UIs)
         self.toolBar.addAction(self.actionManually_Load_UI)
         self.toolBar.addAction(self.actionDock_Native_UIs)
         self.toolBar.addAction(self.actionScript_Window)
-        self.separatorWidg = QtWidgets.QWidget(uiMaster)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.separatorWidg = QtGui.QWidget(uiMaster)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         self.separatorWidg.setSizePolicy(sizePolicy)
         self.toolBar.addWidget(self.separatorWidg)
         self.toolBar.addAction(self.actionAddPanes)
-        self.separatorWidg2 = QtWidgets.QWidget(uiMaster)
+        self.separatorWidg2 = QtGui.QWidget(uiMaster)
         self.separatorWidg2.setSizePolicy(sizePolicy)
         self.toolBar.addWidget(self.separatorWidg2)
         self.toolBar.addAction(self.actionSettings)
@@ -2536,8 +2527,9 @@ class Ui_uiMaster(object):
         #
         self.initializing = True
         #self.loadedUIs = []
+        ptr = shiboken.getCppPointer(self.parent())
         # should be "uiMasterDockWidget"
-        self.mayaName = omui.MQtUtil.fullName(getCppPointer(self.parent()))
+        self.mayaName = omui.MQtUtil.fullName(ptr[0])
         self.tabsNode = "uiMasterLoadedUIs"
         self.openNode = "uiMasterConfigScriptNode"
         self.hook = 0
@@ -2615,8 +2607,8 @@ class Ui_uiMaster(object):
         QtCore.QMetaObject.connectSlotsByName(uiMaster)
 
     def retranslateUi(self, uiMaster):
-        #uiMaster.setWindowTitle(QtWidgets.QApplication.translate("uiMaster", __title__, None, -1))
-        self.welcomeScreen.setText(QtWidgets.QApplication.translate("uiMaster", 
+        #uiMaster.setWindowTitle(QtGui.QApplication.translate("uiMaster", __title__, None, QtGui.QApplication.UnicodeUTF8))
+        self.welcomeScreen.setText(QtGui.QApplication.translate("uiMaster", 
                 "<html><head/><body><p align=\"center\"><span style=\" font-size:16pt; color:#b5b5b5;\">"
                 "<br/>Welcome to Maya uiMaster."
                 "<br/><br/><br/>No UIs are loaded right now."
@@ -2626,19 +2618,19 @@ class Ui_uiMaster(object):
                 "<br/><t/>&bull; From existing windows"
 
                 #"<br/>from files, command-line or existing windows."
-                "</p></body></html>", None, -1))
-        self.toolBar.setWindowTitle(QtWidgets.QApplication.translate("uiMaster", "toolBar", None, -1))
-        self.actionAutoLoad_UIs.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Search relevant directories for .ui files and files with \"ui\"\n"
-"in the name, then attempt to load them into uiMaster", None, -1))
-        self.actionManually_Load_UI.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Load UI from file (.ui, .py, .mel).\n\nAlso adds the directory to MAYA_SCRIPT_PATH and Python module path.", None, -1))
-        self.actionDock_Native_UIs.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Enter window magnet mode, where you click on\n"
-"other maya windows to pull them into uiMaster.\nPress any key to exit this mode.\n\nCustom UIs will need to be re-sourced from\nscript or file upon reloading scene", None, -1))
-        self.actionScript_Window.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Open the nested script box. Any floating UIs created\n"
-"with this tool are automatically pulled into uiMaster", None, -1))
-        self.actionAddPanes.setText(QtWidgets.QApplication.translate("uiMaster", "Create new rows and panes", None, -1))
-        self.actionClose.setText(QtWidgets.QApplication.translate("uiMaster", "Close", None, -1))
-        self.actionSettings.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Open uiMaster settings", None, -1))
-        self.actionInfo.setToolTip(QtWidgets.QApplication.translate("uiMaster", "uiMaster software information", None, -1))
+                "</p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
+        self.toolBar.setWindowTitle(QtGui.QApplication.translate("uiMaster", "toolBar", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionAutoLoad_UIs.setToolTip(QtGui.QApplication.translate("uiMaster", "Search relevant directories for .ui files and files with \"ui\"\n"
+"in the name, then attempt to load them into uiMaster", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionManually_Load_UI.setToolTip(QtGui.QApplication.translate("uiMaster", "Load UI from file (.ui, .py, .mel).\n\nAlso adds the directory to MAYA_SCRIPT_PATH and Python module path.", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionDock_Native_UIs.setToolTip(QtGui.QApplication.translate("uiMaster", "Enter window magnet mode, where you click on\n"
+"other maya windows to pull them into uiMaster.\nPress any key to exit this mode.\n\nCustom UIs will need to be re-sourced from\nscript or file upon reloading scene", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionScript_Window.setToolTip(QtGui.QApplication.translate("uiMaster", "Open the nested script box. Any floating UIs created\n"
+"with this tool are automatically pulled into uiMaster", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionAddPanes.setText(QtGui.QApplication.translate("uiMaster", "Create new rows and panes", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionClose.setText(QtGui.QApplication.translate("uiMaster", "Close", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionSettings.setToolTip(QtGui.QApplication.translate("uiMaster", "Open uiMaster settings", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionInfo.setToolTip(QtGui.QApplication.translate("uiMaster", "uiMaster software information", None, QtGui.QApplication.UnicodeUTF8))
 
 
     #----------------------------------------------------------------------
@@ -2670,13 +2662,13 @@ class Ui_uiMaster(object):
     #
     def fixEdgeCases(self, name, widg, loading):
         if name == "Tool Settings":
-            if type(widg) != QtWidgets.QDockWidget:
+            if type(widg) != QtGui.QDockWidget:
                 # it fucking forgets that it's a dockwidget
                 # and somehow re-wraps itself as a QWidget
                 # WHICH FUCKING INHERITS QDOCKWIDGET (?!?)
                 # WHAT THE FACK, TOOL SETTINGS
-                ptr = getCppPointer(widg)
-                widg = wrapInstance(int(ptr), QtWidgets.QDockWidget)
+                ptr = shiboken.getCppPointer(widg)[0]
+                widg = shiboken.wrapInstance(long(ptr), QtGui.QDockWidget)
             main = getMayaMainWindow()
             if loading:
                 widg.setFloating(True)
@@ -2835,7 +2827,7 @@ class Ui_uiMaster(object):
     def hookWins(self):
         if self.hook == 0:
             curs = QtGui.QCursor(":/makeLiveIcon.png")
-            QtWidgets.QApplication.setOverrideCursor(curs)
+            QtGui.QApplication.setOverrideCursor(curs)
             self.hook = 1
             self.mainSplitter.setEnabled(False)
             if self.floating:
@@ -2851,7 +2843,7 @@ class Ui_uiMaster(object):
     # Undo window-hook mode
     #
     def unhookWins(self):
-        QtWidgets.QApplication.restoreOverrideCursor()
+        QtGui.QApplication.restoreOverrideCursor()
         self.hook = 0
         self.parent().removeEventFilter(self.hookFilter)
         getMayaMainWindow().removeEventFilter(self.hookFilter)
@@ -2887,11 +2879,11 @@ class Ui_uiMaster(object):
             # and to make sure we're still in Maya
             self.parent().setAttribute(
                         QtCore.Qt.WA_TransparentForMouseEvents, True)
-            target = QtWidgets.QApplication.widgetAt(QtWidgets.QCursor.pos())
+            target = QtGui.QApplication.widgetAt(QtGui.QCursor.pos())
             self.parent().setAttribute(
                         QtCore.Qt.WA_TransparentForMouseEvents, False)
             proxy = self.uiView.currProxy()
-            active = QtWidgets.QApplication.activeWindow()
+            active = QtGui.QApplication.activeWindow()
             # check for NoneTypes
             if None in [target, active, proxy] or not proxy.widget():
                 return
@@ -3161,7 +3153,7 @@ class Ui_uiMaster(object):
     # Add new widget to vertical splitter (global)
     #
     def addNewRow(self):
-        newRow = QtWidgets.QSplitter(self)
+        newRow = QtGui.QSplitter(self)
         if self.layoutMode == "columns":
             newRow.setOrientation(QtCore.Qt.Vertical)
         # Set new row's height to 1/count
@@ -3351,14 +3343,14 @@ class Ui_uiMaster(object):
         newNames = list(set(savedNames) - set(currNames))
         if newNames:
             newData = [a for a in data[0] if a[0] in newNames]
-            win = QtWidgets.QMessageBox(self)
+            win = QtGui.QMessageBox(self)
             win.setWindowTitle("New UIs found")
-            win.setIcon(QtWidgets.QMessageBox.Question)
+            win.setIcon(QtGui.QMessageBox.Question)
             win.setText("New scene has its own uiMaster tabs.\n\n"
                         "What's the plan?\n")
-            win.addButton("Add to existing", QtWidgets.QMessageBox.AcceptRole)
-            win.addButton("Replace existing", QtWidgets.QMessageBox.YesRole)
-            win.addButton("Ignore", QtWidgets.QMessageBox.NoRole)
+            win.addButton("Add to existing", QtGui.QMessageBox.AcceptRole)
+            win.addButton("Replace existing", QtGui.QMessageBox.YesRole)
+            win.addButton("Ignore", QtGui.QMessageBox.NoRole)
             win.exec_()
             response = win.clickedButton().text()
             if response == "Add to existing":
@@ -3575,17 +3567,17 @@ class Ui_uiMaster(object):
     # Open messagebox to ask about skipped UIs
     #
     def skippedUIs(self, failedToLoad):
-        win = QtWidgets.QMessageBox(getMayaMainWindow())
+        win = QtGui.QMessageBox(getMayaMainWindow())
         win.setWindowTitle("Error restoring UIs")
-        win.setIcon(QtWidgets.QMessageBox.Warning)
+        win.setIcon(QtGui.QMessageBox.Warning)
         win.setText("Couldn't find valid sources for the "
                     "following UIs: \n\n{0}\n\n"
                     "Re-Source now?".format("\n".join(failedToLoad)))
         win.addButton("Open file", 
-                        QtWidgets.QMessageBox.YesRole)
+                        QtGui.QMessageBox.YesRole)
         win.addButton("Enter command", 
-                        QtWidgets.QMessageBox.NoRole)
-        win.addButton("Ignore", QtWidgets.QMessageBox.RejectRole)
+                        QtGui.QMessageBox.NoRole)
+        win.addButton("Ignore", QtGui.QMessageBox.RejectRole)
         win.exec_()
         choice = win.clickedButton().text()
         if choice == "Open file":
@@ -3620,7 +3612,7 @@ class Ui_uiMaster(object):
 """
 # The semi-transparent overlay for creating new panes and rows
 #
-class PaneOverlay(QtWidgets.QMainWindow):
+class PaneOverlay(QtGui.QMainWindow):
     def __init__(self, parent=None):
         self.base = super(PaneOverlay, self)
         self.base.__init__(parent)
@@ -3649,7 +3641,7 @@ class PaneOverlay(QtWidgets.QMainWindow):
         painter.drawPixmap(3, 9, down)
         painter.end()
 
-        self.rowButton = QtWidgets.QPushButton(self)
+        self.rowButton = QtGui.QPushButton(self)
         self.rowButton.resize(80, 80)
         self.rowButton.clicked.connect(self.addRowAndUpdate)
 
@@ -3709,7 +3701,7 @@ class PaneOverlay(QtWidgets.QMainWindow):
         return x, y, w, h
 
     def addButton(self, row):
-        but = QtWidgets.QPushButton(self)
+        but = QtGui.QPushButton(self)
         but.clicked.connect(partial(self.addPaneAndUpdate, row))
         self.buttonDict[row] = but
         but.setVisible(True)
@@ -3758,26 +3750,26 @@ class Ui_ExecWin(object):
     def setupUi(self, execWin):
         execWin.setObjectName("execWin")
         execWin.resize(400, 220)
-        self.centralwidget = QtWidgets.QWidget(execWin)
+        self.centralwidget = QtGui.QWidget(execWin)
         self.centralwidget.setObjectName("centralwidget")
-        self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.centralwidget)
+        self.verticalLayout_2 = QtGui.QVBoxLayout(self.centralwidget)
         self.verticalLayout_2.setContentsMargins(5, 5, 5, 5)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.verticalLayout = QtWidgets.QVBoxLayout()
+        self.verticalLayout = QtGui.QVBoxLayout()
         self.verticalLayout.setSpacing(5)
         self.verticalLayout.setObjectName("verticalLayout")
-        self.label = QtWidgets.QLabel(self.centralwidget)
+        self.label = QtGui.QLabel(self.centralwidget)
         self.label.setObjectName("label")
         self.verticalLayout.addWidget(self.label)
-        self.horizontalLayout = QtWidgets.QHBoxLayout()
+        self.horizontalLayout = QtGui.QHBoxLayout()
         self.horizontalLayout.setSpacing(200)
         self.horizontalLayout.setContentsMargins(-1, 10, -1, -1)
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.langLabel = QtWidgets.QLabel(self.centralwidget)
+        self.langLabel = QtGui.QLabel(self.centralwidget)
         self.langLabel.setObjectName("langLabel")
         self.horizontalLayout.addWidget(self.langLabel)
-        self.langButton = QtWidgets.QPushButton(self.centralwidget)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        self.langButton = QtGui.QPushButton(self.centralwidget)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.langButton.sizePolicy().hasHeightForWidth())
@@ -3785,7 +3777,7 @@ class Ui_ExecWin(object):
         self.langButton.setObjectName("langButton")
         self.horizontalLayout.addWidget(self.langButton)
         self.verticalLayout.addLayout(self.horizontalLayout)
-        self.stackedWidget = QtWidgets.QStackedWidget(self.centralwidget)
+        self.stackedWidget = QtGui.QStackedWidget(self.centralwidget)
         self.stackedWidget.setObjectName("stackedWidget")
         
         # make cmdsScrollFieldExecuter maya ui and get py obj of it
@@ -3797,7 +3789,8 @@ class Ui_ExecWin(object):
         
         self.pyCmd = cmds.cmdScrollFieldExecuter(st="python", 
                             showTooltipHelp=False)#, objectPathCompletion=False)
-        self.pyWidg = pm.ui.toQtObject(self.pyCmd)
+        ptr = omui.MQtUtil.findControl(self.pyCmd)
+        self.pyWidg = shiboken.wrapInstance(long(ptr), QtGui.QTextEdit)
         self.pyWidg.setObjectName("pyCmdWidget")
         self.pyWidg.setFixedHeight(124)
         self.pyWidg.setParent(self)
@@ -3805,7 +3798,8 @@ class Ui_ExecWin(object):
         self.pyWidg.installEventFilter(self.cmdFilter)
         
         self.melCmd = cmds.cmdScrollFieldExecuter(st="mel")
-        self.melWidg = pm.ui.toQtObject(self.melCmd) 
+        ptr = omui.MQtUtil.findControl(self.melCmd)
+        self.melWidg = shiboken.wrapInstance(long(ptr), QtGui.QTextEdit)
         self.melWidg.setObjectName("melCmdWidget")
         self.melWidg.setFixedHeight(124)
         self.melWidg.setParent(self)
@@ -3832,15 +3826,15 @@ class Ui_ExecWin(object):
         self.stackedWidget.setCurrentIndex(0)
         # get re-mapped name of cmdScrollFieldExecuter
         #
-        self.pyCmd = omui.MQtUtil.fullName(getCppPointer(self.pyWidg))
-        self.melCmd = omui.MQtUtil.fullName(getCppPointer(self.melWidg))
+        self.pyCmd = omui.MQtUtil.fullName(shiboken.getCppPointer(self.pyWidg)[0])
+        self.melCmd = omui.MQtUtil.fullName(shiboken.getCppPointer(self.melWidg)[0])
         cmds.deleteUI(derWin)
 
     def retranslateUi(self, execWin):
-        execWin.setWindowTitle(QtWidgets.QApplication.translate("execWin", "Script Executer", None, -1))
-        self.label.setText(QtWidgets.QApplication.translate("execWin", "<html><head/><body><p>Any new windows created with this script box<br/>will be loaded into uiMaster</p><p>(execute with CTRL+E / numpad Enter)</p></body></html>", None, -1))
-        self.langLabel.setText(QtWidgets.QApplication.translate("execWin", "Python:", None, -1))
-        self.langButton.setText(QtWidgets.QApplication.translate("execWin", "Switch to MEL", None, -1))
+        execWin.setWindowTitle(QtGui.QApplication.translate("execWin", "Script Executer", None, QtGui.QApplication.UnicodeUTF8))
+        self.label.setText(QtGui.QApplication.translate("execWin", "<html><head/><body><p>Any new windows created with this script box<br/>will be loaded into uiMaster</p><p>(execute with CTRL+E / numpad Enter)</p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
+        self.langLabel.setText(QtGui.QApplication.translate("execWin", "Python:", None, QtGui.QApplication.UnicodeUTF8))
+        self.langButton.setText(QtGui.QApplication.translate("execWin", "Switch to MEL", None, QtGui.QApplication.UnicodeUTF8))
     
     # Change the cmdScrollFieldExecuter box language - change page in stackedWidget
     #
@@ -3953,103 +3947,103 @@ class Ui_settingsWin(object):
     def setupUi(self, settingsWin):
         settingsWin.setObjectName("settingsWin")
         settingsWin.resize(300, 180)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(settingsWin.sizePolicy().hasHeightForWidth())
         settingsWin.setSizePolicy(sizePolicy)
-        self.centralwidget = QtWidgets.QWidget(settingsWin)
+        self.centralwidget = QtGui.QWidget(settingsWin)
         self.centralwidget.setObjectName("centralwidget")
-        self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
+        self.verticalLayout = QtGui.QVBoxLayout(self.centralwidget)
         self.verticalLayout.setContentsMargins(30, 11, 30, -1)
         self.verticalLayout.setObjectName("verticalLayout")
 
-        self.updateLayout = QtWidgets.QVBoxLayout()
+        self.updateLayout = QtGui.QVBoxLayout()
         self.updateLayout.setContentsMargins(50, -1, 50, -1)
         self.updateLayout.setObjectName("updateLayout")
-        self.updateButton = QtWidgets.QPushButton(self.centralwidget)
+        self.updateButton = QtGui.QPushButton(self.centralwidget)
         self.updateButton.setObjectName("updateButton")
         self.updateLayout.addWidget(self.updateButton)
         self.verticalLayout.addLayout(self.updateLayout)
         
-        self.mode = QtWidgets.QGroupBox(self.centralwidget)
+        self.mode = QtGui.QGroupBox(self.centralwidget)
         self.mode.setObjectName("mode")
-        self.gridLayout_3 = QtWidgets.QGridLayout(self.mode)
+        self.gridLayout_3 = QtGui.QGridLayout(self.mode)
         self.gridLayout_3.setObjectName("gridLayout_3")
-        self.tabMode = QtWidgets.QRadioButton(self.mode)
+        self.tabMode = QtGui.QRadioButton(self.mode)
         self.tabMode.setObjectName("tabMode")
         self.gridLayout_3.addWidget(self.tabMode, 0, 0, 1, 1)
-        self.paneMode = QtWidgets.QRadioButton(self.mode)
+        self.paneMode = QtGui.QRadioButton(self.mode)
         self.paneMode.setObjectName("paneMode")
         self.gridLayout_3.addWidget(self.paneMode, 0, 1, 1, 2)
         self.verticalLayout.addWidget(self.mode)
 
-        self.paneLayout = QtWidgets.QGroupBox(self.mode)
+        self.paneLayout = QtGui.QGroupBox(self.mode)
         self.paneLayout.setObjectName("mode")
-        self.gridLayout_4 = QtWidgets.QGridLayout(self.paneLayout)
+        self.gridLayout_4 = QtGui.QGridLayout(self.paneLayout)
         self.gridLayout_4.setObjectName("gridLayout_4")
-        self.rowMode = QtWidgets.QRadioButton(self.paneLayout)
+        self.rowMode = QtGui.QRadioButton(self.paneLayout)
         self.rowMode.setObjectName("rowMode")
         self.gridLayout_4.addWidget(self.rowMode, 0, 0, 2, 1)
-        self.columnMode = QtWidgets.QRadioButton(self.paneLayout)
+        self.columnMode = QtGui.QRadioButton(self.paneLayout)
         self.columnMode.setObjectName("columnMode")
         self.gridLayout_4.addWidget(self.columnMode, 0, 1, 2, 2)
         self.gridLayout_3.addWidget(self.paneLayout, 1, 0, 2, 3)
         #self.verticalLayout.addWidget(self.paneLayout)        
 
-        self.autoOpenCheck = QtWidgets.QCheckBox(self.centralwidget)
+        self.autoOpenCheck = QtGui.QCheckBox(self.centralwidget)
         self.autoOpenCheck.setObjectName("autoOpenCheck")
         self.verticalLayout.addWidget(self.autoOpenCheck)
-        self.resizeCheck = QtWidgets.QCheckBox(self.centralwidget)
+        self.resizeCheck = QtGui.QCheckBox(self.centralwidget)
         self.resizeCheck.setObjectName("resizeCheck")
         self.verticalLayout.addWidget(self.resizeCheck)
         """
-        self.focusCheck = QtWidgets.QCheckBox(self.centralwidget)
+        self.focusCheck = QtGui.QCheckBox(self.centralwidget)
         self.focusCheck.setObjectName("focusCheck")
         self.verticalLayout.addWidget(self.focusCheck)
         """
-        self.disperseCheck = QtWidgets.QCheckBox(self.centralwidget)
+        self.disperseCheck = QtGui.QCheckBox(self.centralwidget)
         self.disperseCheck.setObjectName("disperseCheck")
         self.verticalLayout.addWidget(self.disperseCheck)
-        self.hotkeyCheck = QtWidgets.QCheckBox(self.centralwidget)
+        self.hotkeyCheck = QtGui.QCheckBox(self.centralwidget)
         self.hotkeyCheck.setObjectName("hotkeyCheck")
         self.verticalLayout.addWidget(self.hotkeyCheck)
         
-        self.defaultUIs = QtWidgets.QGroupBox(self.centralwidget)
+        self.defaultUIs = QtGui.QGroupBox(self.centralwidget)
         self.defaultUIs.setObjectName("defaultUIs")
-        self.gridLayout = QtWidgets.QGridLayout(self.defaultUIs)
+        self.gridLayout = QtGui.QGridLayout(self.defaultUIs)
         self.gridLayout.setObjectName("gridLayout")
-        self.saveButton = QtWidgets.QPushButton(self.centralwidget)
+        self.saveButton = QtGui.QPushButton(self.centralwidget)
         self.saveButton.setObjectName("saveButton")
         self.gridLayout.addWidget(self.saveButton, 0, 0, 2, 1)
-        self.delButton = QtWidgets.QPushButton(self.centralwidget)
+        self.delButton = QtGui.QPushButton(self.centralwidget)
         self.delButton.setObjectName("delButton")
         self.gridLayout.addWidget(self.delButton, 0, 1, 2, 2)
         
-        self.dockable = QtWidgets.QGroupBox(self.centralwidget)
+        self.dockable = QtGui.QGroupBox(self.centralwidget)
         self.dockable.setObjectName("dockable")
-        self.gridLayout_2 = QtWidgets.QGridLayout(self.dockable)
+        self.gridLayout_2 = QtGui.QGridLayout(self.dockable)
         self.gridLayout_2.setObjectName("gridLayout_2")
-        self.leftCheck = QtWidgets.QCheckBox(self.dockable)
+        self.leftCheck = QtGui.QCheckBox(self.dockable)
         self.leftCheck.setObjectName("leftCheck")
         self.gridLayout_2.addWidget(self.leftCheck, 0, 0, 1, 1)
-        self.rightCheck = QtWidgets.QCheckBox(self.dockable)
+        self.rightCheck = QtGui.QCheckBox(self.dockable)
         self.rightCheck.setObjectName("rightCheck")
         self.gridLayout_2.addWidget(self.rightCheck, 0, 1, 1, 2)
 
-        self.topCheck = QtWidgets.QCheckBox(self.dockable)
+        self.topCheck = QtGui.QCheckBox(self.dockable)
         self.topCheck.setObjectName("topCheck")
         self.gridLayout_2.addWidget(self.topCheck, 1, 0, 2, 1)
-        self.bottomCheck = QtWidgets.QCheckBox(self.dockable)
+        self.bottomCheck = QtGui.QCheckBox(self.dockable)
         self.bottomCheck.setObjectName("bottomCheck")
         self.gridLayout_2.addWidget(self.bottomCheck, 1, 1, 2, 2)
 
         self.verticalLayout.addWidget(self.defaultUIs)
         self.verticalLayout.addWidget(self.dockable)
-        self.verticalLayout_2 = QtWidgets.QVBoxLayout()
+        self.verticalLayout_2 = QtGui.QVBoxLayout()
         self.verticalLayout_2.setContentsMargins(50, -1, 50, -1)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.pushButton = QtWidgets.QPushButton(self.centralwidget)
+        self.pushButton = QtGui.QPushButton(self.centralwidget)
         self.pushButton.setObjectName("pushButton")
         self.verticalLayout_2.addWidget(self.pushButton)
         self.verticalLayout.addLayout(self.verticalLayout_2)
@@ -4098,28 +4092,28 @@ class Ui_settingsWin(object):
     
 
     def retranslateUi(self, settingsWin):
-        settingsWin.setWindowTitle(QtWidgets.QApplication.translate("settingsWin", "Settings", None, -1))
-        self.updateButton.setText(QtWidgets.QApplication.translate("settingsWin", "Update uiMaster", None, -1))
-        self.mode.setTitle(QtWidgets.QApplication.translate("settingsWin", "UI display mode", None, -1))
-        self.tabMode.setText(QtWidgets.QApplication.translate("settingsWin", "Tabs Mode", None, -1))
-        self.paneMode.setText(QtWidgets.QApplication.translate("settingsWin", "Panes Mode", None, -1))
-        self.paneLayout.setTitle(QtWidgets.QApplication.translate("settingsWin", "Pane Layout", None, -1))
-        self.rowMode.setText(QtWidgets.QApplication.translate("settingsWin", "Rows", None, -1))
-        self.columnMode.setText(QtWidgets.QApplication.translate("settingsWin", "Columns", None, -1))
-        self.autoOpenCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Open uiMaster on startup", None, -1))
-        self.resizeCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Auto-resize (Tab Mode)", None, -1))
-        #self.focusCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Mouseover Focus", None, -1))
-        self.disperseCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Disperse windows when closed", None, -1))
-        self.hotkeyCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Hotkeys: RMB + 1-8 to change tabs\n"+" "*15+"RMB + Spacebar to show/hide", None, -1))
-        self.defaultUIs.setTitle(QtWidgets.QApplication.translate("settingsWin", "Open default UIs on creation", None, -1))
-        self.saveButton.setText(QtWidgets.QApplication.translate("settingsWin", "Set Current as Default", None, -1))
-        self.delButton.setText(QtWidgets.QApplication.translate("settingsWin", "Delete Default", None, -1))
-        self.dockable.setTitle(QtWidgets.QApplication.translate("settingsWin", "Dockable", None, -1))
-        self.leftCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Left", None, -1))
-        self.rightCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Right", None, -1))
-        self.topCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Top", None, -1))
-        self.bottomCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Bottom", None, -1))
-        self.pushButton.setText(QtWidgets.QApplication.translate("settingsWin", "Ok", None, -1))
+        settingsWin.setWindowTitle(QtGui.QApplication.translate("settingsWin", "Settings", None, QtGui.QApplication.UnicodeUTF8))
+        self.updateButton.setText(QtGui.QApplication.translate("settingsWin", "Update uiMaster", None, QtGui.QApplication.UnicodeUTF8))
+        self.mode.setTitle(QtGui.QApplication.translate("settingsWin", "UI display mode", None, QtGui.QApplication.UnicodeUTF8))
+        self.tabMode.setText(QtGui.QApplication.translate("settingsWin", "Tabs Mode", None, QtGui.QApplication.UnicodeUTF8))
+        self.paneMode.setText(QtGui.QApplication.translate("settingsWin", "Panes Mode", None, QtGui.QApplication.UnicodeUTF8))
+        self.paneLayout.setTitle(QtGui.QApplication.translate("settingsWin", "Pane Layout", None, QtGui.QApplication.UnicodeUTF8))
+        self.rowMode.setText(QtGui.QApplication.translate("settingsWin", "Rows", None, QtGui.QApplication.UnicodeUTF8))
+        self.columnMode.setText(QtGui.QApplication.translate("settingsWin", "Columns", None, QtGui.QApplication.UnicodeUTF8))
+        self.autoOpenCheck.setText(QtGui.QApplication.translate("settingsWin", "Open uiMaster on startup", None, QtGui.QApplication.UnicodeUTF8))
+        self.resizeCheck.setText(QtGui.QApplication.translate("settingsWin", "Auto-resize (Tab Mode)", None, QtGui.QApplication.UnicodeUTF8))
+        #self.focusCheck.setText(QtGui.QApplication.translate("settingsWin", "Mouseover Focus", None, QtGui.QApplication.UnicodeUTF8))
+        self.disperseCheck.setText(QtGui.QApplication.translate("settingsWin", "Disperse windows when closed", None, QtGui.QApplication.UnicodeUTF8))
+        self.hotkeyCheck.setText(QtGui.QApplication.translate("settingsWin", "Hotkeys: RMB + 1-8 to change tabs\n"+" "*15+"RMB + Spacebar to show/hide", None, QtGui.QApplication.UnicodeUTF8))
+        self.defaultUIs.setTitle(QtGui.QApplication.translate("settingsWin", "Open default UIs on creation", None, QtGui.QApplication.UnicodeUTF8))
+        self.saveButton.setText(QtGui.QApplication.translate("settingsWin", "Set Current as Default", None, QtGui.QApplication.UnicodeUTF8))
+        self.delButton.setText(QtGui.QApplication.translate("settingsWin", "Delete Default", None, QtGui.QApplication.UnicodeUTF8))
+        self.dockable.setTitle(QtGui.QApplication.translate("settingsWin", "Dockable", None, QtGui.QApplication.UnicodeUTF8))
+        self.leftCheck.setText(QtGui.QApplication.translate("settingsWin", "Left", None, QtGui.QApplication.UnicodeUTF8))
+        self.rightCheck.setText(QtGui.QApplication.translate("settingsWin", "Right", None, QtGui.QApplication.UnicodeUTF8))
+        self.topCheck.setText(QtGui.QApplication.translate("settingsWin", "Top", None, QtGui.QApplication.UnicodeUTF8))
+        self.bottomCheck.setText(QtGui.QApplication.translate("settingsWin", "Bottom", None, QtGui.QApplication.UnicodeUTF8))
+        self.pushButton.setText(QtGui.QApplication.translate("settingsWin", "Ok", None, QtGui.QApplication.UnicodeUTF8))
     
     
     # Change dock areas
@@ -4205,20 +4199,20 @@ with open(n, "a+") as f:
         # to get around silly auto-decapitalization
         # performed by qSettings
         dock = self.parent().parent()
-        self.tabMode.setChecked(bool(qSet.value("tabMode", 1)))
-        self.paneMode.setChecked(bool(qSet.value("paneMode", 0)))
-        self.rowMode.setChecked(bool(qSet.value("rowMode", 1)))
-        self.columnMode.setChecked(bool(qSet.value("columnMode", 0)))
-        self.autoOpenCheck.setChecked(bool(qSet.value("autoOpenCheck", 0)))
-        self.resizeCheck.setChecked(bool(qSet.value("resizeCheck", 1)))
+        self.tabMode.setChecked(int(qSet.value("tabMode", 1)))
+        self.paneMode.setChecked(int(qSet.value("paneMode", 0)))
+        self.rowMode.setChecked(int(qSet.value("rowMode", 1)))
+        self.columnMode.setChecked(int(qSet.value("columnMode", 0)))
+        self.autoOpenCheck.setChecked(int(qSet.value("autoOpenCheck", 0)))
+        self.resizeCheck.setChecked(int(qSet.value("resizeCheck", 1)))
         #self.focusCheck.setChecked(
         #            qSet.value("focusCheck", "false") == "true")
-        self.disperseCheck.setChecked(bool(qSet.value("disperseCheck", 1)))
-        self.hotkeyCheck.setChecked(bool(qSet.value("hotkeyCheck", 1)))
-        self.leftCheck.setChecked(bool(qSet.value("leftCheck", 1)))
-        self.rightCheck.setChecked(bool(qSet.value("rightCheck", 0)))
-        self.topCheck.setChecked(bool(qSet.value("topCheck", 0)))
-        self.bottomCheck.setChecked(bool(qSet.value("bottomCheck", 0)))
+        self.disperseCheck.setChecked(int(qSet.value("disperseCheck", 1)))
+        self.hotkeyCheck.setChecked(int(qSet.value("hotkeyCheck", 1)))
+        self.leftCheck.setChecked(int(qSet.value("leftCheck", 1)))
+        self.rightCheck.setChecked(int(qSet.value("rightCheck", 0)))
+        self.topCheck.setChecked(int(qSet.value("topCheck", 0)))
+        self.bottomCheck.setChecked(int(qSet.value("bottomCheck", 0)))
 
         self.parent().addToolBar(
                     QtCore.Qt.ToolBarArea(int(qSet.value("toolBarArea", 4))),
@@ -4226,14 +4220,14 @@ with open(n, "a+") as f:
         """getMayaMainWindow().addDockWidget(
                     QtCore.Qt.DockWidgetArea(int(qSet.value("dockArea", 0))),
                     dock)"""
-        area = bool(qSet.value("dockArea", 0))
+        area = int(qSet.value("dockArea", 0))
         pos = {1: "left", 2: "right", 4: "top", 8: "bottom"}
         if area:
             # Gotta do it the Maya way with cmds, or else it 
             # splits the dock area in half 
             # PySide bug (?)
             cmds.dockControl(self.parent().mayaName, edit=True, area=pos[area])
-        dock.setFloating(bool(qSet.value("floating", 1)))
+        dock.setFloating(int(qSet.value("floating", 1)))
 
         lang = qSet.value("lang", "python")
         if self.parent().scriptWin.lang != lang:
@@ -4289,16 +4283,16 @@ class Ui_infoWin(object):
     def setupUi(self, infoWin):
         infoWin.setObjectName("infoWin")
         infoWin.resize(300, 222)
-        self.centralwidget = QtWidgets.QWidget(infoWin)
+        self.centralwidget = QtGui.QWidget(infoWin)
         self.centralwidget.setObjectName("centralwidget")
-        self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
+        self.verticalLayout = QtGui.QVBoxLayout(self.centralwidget)
         self.verticalLayout.setObjectName("verticalLayout")
-        self.label = QtWidgets.QLabel(self.centralwidget)
+        self.label = QtGui.QLabel(self.centralwidget)
         self.label.setObjectName("label")
         self.verticalLayout.addWidget(self.label)
         infoWin.setCentralWidget(self.centralwidget)
-        infoWin.setWindowTitle(QtWidgets.QApplication.translate("infoWin", "Software Info", None, -1))
-        self.label.setText(QtWidgets.QApplication.translate("infoWin", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
+        infoWin.setWindowTitle(QtGui.QApplication.translate("infoWin", "Software Info", None, QtGui.QApplication.UnicodeUTF8))
+        self.label.setText(QtGui.QApplication.translate("infoWin", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
 "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
 "p, li { white-space: pre-wrap; }\n"
 "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:8pt; font-weight:400; font-style:normal;\">\n"
@@ -4309,7 +4303,7 @@ class Ui_infoWin(object):
 "<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p>\n"
 "<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">Copyright &copy; "+__copyYear__+" "+__author__+"</p>\n"
 "<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">All rights reserved</p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">... or something</p></body></html>", None, -1))
+"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">... or something</p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
 
         QtCore.QMetaObject.connectSlotsByName(infoWin)
         self.setWindowFlags(QtCore.Qt.Popup)
@@ -4378,7 +4372,7 @@ def focusOutEvent(self, event):
     if not self.prevProxy or not self.prevProxy.widget():
         return
     widg = self.prevProxy.widget()
-    newF = QtWidgets.QApplication.focusWidget()
+    newF = QtGui.QApplication.focusWidget()
     isSelf = newF is self
 
     # investigate new focus - is it window, and REAL window at that?
