@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "maya-uimaster"
+version = "0.1.0"
+description = ""
+authors = ["timmyliang <820472580@qq.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "*"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
