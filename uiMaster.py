@@ -236,7 +236,7 @@ def selfUpdate():
     content = newest.read()
     frame = {}
     try:
-        exec content in frame
+        exec(content,frame)
     except SyntaxError:
         win.setText("\nToo many URL requests, try again later.\n")
         win.exec_()
@@ -723,7 +723,7 @@ class TabBar(QtWidgets.QTabBar):
         leftD = mPos.x() - rect.left()
         rightD = rect.right() - mPos.x()
         stuff = [index, self.tabText(index), leftD, rightD]
-        data.setData("uiTabData", str(stuff))
+        data.setData("uiTabData", QtCore.QByteArray(str(stuff).encode("utf-8")))
         d.setMimeData(data)
         
         rect.setWidth(rect.width() - 1)
@@ -742,7 +742,7 @@ class TabBar(QtWidgets.QTabBar):
         if not stuff:
             event.ignore()
             return
-        stuff = eval(stuff.__str__())
+        stuff = eval(bytes(stuff).decode("utf-8"))
         event.accept()
         index = stuff[0]
         name = stuff[1]
@@ -771,7 +771,7 @@ class TabBar(QtWidgets.QTabBar):
             #self.setTabsClosable(False)
             rect.setWidth(rect.width() - 1)
             self.dragPix = QtGui.QPixmap.grabWidget(self, rect)
-            data.setData("uiTabData", str(stuff))
+            data.setData("uiTabData", str(stuff).encode("utf-8"))
             data.setParent(self)
         #self.tabButton(index, QtWidgets.QTabBar.RightSide).hide()
         self.dragData = stuff
@@ -784,7 +784,7 @@ class TabBar(QtWidgets.QTabBar):
             return
         event.accept()
         data = event.mimeData()
-        stuff = eval(data.data("uiTabData").__str__())
+        stuff = eval(bytes(data.data("uiTabData")).decode("utf-8"))
         index = stuff[0]
         leftD = stuff[2]
         rightD = stuff[3]
@@ -815,7 +815,7 @@ class TabBar(QtWidgets.QTabBar):
                     self.moveTab(index, i)
                     self.setCurrentIndex(i)
                     stuff[0] = i
-                    data.setData("uiTabData", str(stuff))
+                    data.setData("uiTabData", str(stuff).encode("utf-8"))
                     self.dragData = stuff
         
         self.repaint(self.rect())
