@@ -66,22 +66,5 @@ force_single_line = true
 default_section = "THIRDPARTY"
 skip_glob = "*/docs/conf.py"
 
-[tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = python2.7,echo
-isolated_build = True
-skipsdist = true
-
-[testenv]
-deps = pytest >= 3.0.0, <4
-commands = pytest
-
-[testenv:echo]
-deps =
-commands = python -c "print(123)"
-
-"""
-
 [tool.flake8]
 max-line-length=88
