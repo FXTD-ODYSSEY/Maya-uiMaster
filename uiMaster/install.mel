@@ -3,12 +3,12 @@
 // ***************************************************************************
 //
 // DESCRIPTION:
-//  Add the module which is located in the same directory as the .mel file 
-//  into the first available MAYA_MODULE_PATH directory. It doesn't matter 
-//  where on disk the module lives as the script will make sure the path in 
-//  the .mod file links to the correct place. There are some basic sanity 
-//  checks in place to make sure the script doesn't error out. This includes 
-//  Maya version compatibility with the module. Permissions of the directories 
+//  Add the module which is located in the same directory as the .mel file
+//  into the first available MAYA_MODULE_PATH directory. It doesn't matter
+//  where on disk the module lives as the script will make sure the path in
+//  the .mod file links to the correct place. There are some basic sanity
+//  checks in place to make sure the script doesn't error out. This includes
+//  Maya version compatibility with the module. Permissions of the directories
 //  files have to be written to and incorrectly formatted module files.
 //
 // REQUIRES:
@@ -35,12 +35,12 @@
 
 proc string[] getModulePathsFromEnvironment()
 {
-    // get all of the paths in the MAYA_MODULE_PATH variable and split them 
+    // get all of the paths in the MAYA_MODULE_PATH variable and split them
     // into a string array.
     string $paths[];
     string $separator = (`about -nt`) ? ";" : ":";
     tokenize(getenv("MAYA_MODULE_PATH"), $separator, $paths);
-    
+
     return $paths;
 }
 
@@ -50,22 +50,22 @@ proc string[] getModulePathsFromEnvironment()
 proc string findModuleFileInPath(string $path)
 {
     // get the first module file found in the directory.
-    string $files[] = `getFileList -folder $path -filespec "*.mod"`; 
+    string $files[] = `getFileList -folder $path -filespec "*.mod"`;
     return $files[0];
 }
 
 
 proc string findModuleFileInModulePath(string $moduleFile, string $modulePaths[])
-{ 
+{
     // loop module paths
     for( $path in $modulePaths )
     {
         // find moduleFile in path
-        string $files[] = `getFileList -folder $path -filespec $moduleFile`; 
+        string $files[] = `getFileList -folder $path -filespec $moduleFile`;
         if ($files[0] != "")
             return $path;
     }
-    
+
     // declare empty output
     string $empty;
     return $empty;
@@ -77,14 +77,14 @@ proc string findModuleFileInModulePath(string $moduleFile, string $modulePaths[]
 
 proc string[] readModuleFile(string $path)
 {
-    // read the module file and return each line as a string part of a string 
+    // read the module file and return each line as a string part of a string
     // array.
     string $lines[];
-    
+
     $fileId = `fopen $path "r"`;
-    string $data = `fread $fileId $data`; 
+    string $data = `fread $fileId $data`;
     tokenize($data, "\n", $lines);
-    
+
     return $lines;
 }
 
@@ -94,11 +94,11 @@ proc string[] readModuleFile(string $path)
 
 proc string getConditionValue(string $line)
 {
-    // get the condition value by splitting the string on the : character and 
+    // get the condition value by splitting the string on the : character and
     // returning the second section of the partition.
     string $partitions[];
     tokenize($line, ":", $partitions);
-    
+
     return $partitions[1];
 }
 
@@ -109,25 +109,25 @@ proc string getConditionValue(string $line)
 proc string[] parseModuleLine(string $line)
 {
     // declare output variable
-    string $output[];  
-    
+    string $output[];
+
     // declare default output
     string $mayaVersion;
     string $language;
     string $platform;
 
-    // make sure its a module line by checking if the line starts with a + 
+    // make sure its a module line by checking if the line starts with a +
     // or -.
     if (startsWith($line, "+") == 0 && startsWith($line, "-") == 0)
         return $output;
-    
+
     // get partitions
     string $partitions[];
     tokenize($line, " ", $partitions);
-    
+
     // get partitions length
     $length = size($partitions);
-    
+
     // loop partitions in reverse
     for( $i=1; $i<$length+1; ++$i )
     {
@@ -152,7 +152,7 @@ proc string[] parseModuleLine(string $line)
             stringArrayRemoveAtIndex($index, $partitions);
         }
     }
-    
+
     // set output
     $output[0] = $partitions[0];
     $output[1] = $partitions[1];
@@ -175,33 +175,33 @@ proc string[] findModuleMatch(string $lines[])
     string $mayaVersion = `about -version`;
     string $language = `about -uiLanguage`;
     string $platform = `about -operatingSystem`;
-    
+
     // process module to see if its suitable for the current version of Maya.
     for($line in $lines)
     {
         // get line data
         string $lineData[] = parseModuleLine($line);
-        
+
         // validate line data
         if ($lineData[0] == "")
             continue;
-        
+
         // validate maya version
-        if ($lineData[4] != "" && $lineData[4] != $mayaVersion) 
+        if ($lineData[4] != "" && $lineData[4] != $mayaVersion)
             continue;
-            
+
         // validate language
-        if ($lineData[5] != "" && $lineData[5] != $language) 
+        if ($lineData[5] != "" && $lineData[5] != $language)
             continue;
-            
+
         // validate platform
-        if ($lineData[6] != "" && $lineData[6] != $platform) 
+        if ($lineData[6] != "" && $lineData[6] != $platform)
             continue;
-            
+
         // return match
         return $lineData;
     }
-    
+
     // declare empty output
     string $empty[];
     return $empty;
@@ -218,14 +218,14 @@ proc loadModuleExtended(string $moduleFile, string $path)
 
     // load module
     loadModule -load $moduleFile;
-    
-    // add scripts path to system path, for some reason after loading the 
+
+    // add scripts path to system path, for some reason after loading the
     // module we are still not able to import the scripts even though the
     // path is available in the MAYA_SCRIPT_PATH.
     string $scriptPath = $path + $separator + "scripts";
     python("import sys; sys.path.append('" + $scriptPath + "')");
-    
-    // see if a userSetup.py is present in the script folder. If this is the 
+
+    // see if a userSetup.py is present in the script folder. If this is the
     // case execute that file.
     string $userSetup = $scriptPath + $separator + "userSetup.py";
     if (`filetest -e $userSetup` == 1)
@@ -241,46 +241,46 @@ global proc installModule()
     // get path from mel file
     string $melWhatIs = `whatIs "installModule"`;
     string $melWhatIsPath = `match ": (.*)" $melWhatIs`;
-    
+
     int $melSize = `size $melWhatIsPath`;
     string $melPath = `substring $melWhatIsPath 3 ($melSize-3)`;
     string $path = dirname($melPath);
-    
+
     // get separator
     string $separator = "/";
 
     // find installed module
     string $modules[] = `moduleInfo -listModules`;
-    
-    // get module paths from the environment and choose the first one if this 
+
+    // get module paths from the environment and choose the first one if this
     // variable is not overwritten the .mod file will be written to this path.
     string $modulePaths[] = getModulePathsFromEnvironment();
     string $modulePathDefault;
 
     // find module in current directory
     string $moduleFileBase = findModuleFileInPath($path);
-    
+
     // validate module
-    if ($moduleFileBase == "") 
+    if ($moduleFileBase == "")
         error("\nNo template module file found in " + $path);
-    
+
     // find full module path
     string $moduleFile = $path + $separator + $moduleFileBase;
-        
+
     // read module content
     string $moduleContent[] = readModuleFile($moduleFile);
-    
+
     // find module match
     string $moduleMatch[] = findModuleMatch($moduleContent);
     string $moduleName = $moduleMatch[1];
     string $moduleVersion = $moduleMatch[2];
-    
+
     // validate module content
-    if ($moduleName == "") 
+    if ($moduleName == "")
         error("\nNo valid module information found matching the current version/language/platform of Maya in " + $moduleFile);
-    
+
     // check if module already exists
-    if (stringArrayContains($moduleName, $modules) == 1) 
+    if (stringArrayContains($moduleName, $modules) == 1)
     {
         string $moduleVersionExisting = `moduleInfo -moduleName $moduleName -version`;
         string $existingPath = `moduleInfo -moduleName $moduleName -path`;
@@ -289,12 +289,12 @@ global proc installModule()
         {
             print("The " + $moduleName + " module, version " + $moduleVersion + " at " + $path + " is already installed!");
             return;
-        }    
-        
+        }
+
         // find existing module path
         $modulePathDefault = findModuleFileInModulePath($moduleFileBase, $modulePaths);
     }
-    
+
     // get existing module path to the front of the list
     if ($modulePathDefault != "")
     {
@@ -302,23 +302,23 @@ global proc installModule()
         stringArrayRemoveAtIndex($index, $modulePaths);
         stringArrayInsertAtIndex(0, $modulePaths, $modulePathDefault);
     }
-        
+
     // loop module paths
     for($modulePath in $modulePaths)
     {
         // only allow default path to be written if it exists
         if ($modulePathDefault != "" && $modulePathDefault != $modulePath)
             continue;
-        
+
         // create dir in case it doesn't exist
         sysFile -makeDir $modulePath;
-    
+
         // construct module path
         string $outputPath = $modulePath + $separator + $moduleFileBase;
 
         // write module file
-        $fileId = `fopen $outputPath "w"`; 
-        
+        $fileId = `fopen $outputPath "w"`;
+
         // if the default path exists error if the file cannot be written
         // this means the module has been installed by hand in a directory
         // that is not writable without administrator permissions. The error
@@ -335,21 +335,21 @@ global proc installModule()
             if (endsWith($line, ".\r") || endsWith($line, "."))
                 $processedLine = `substring $line 1 (size($line) - 2)` + " " + $path + "\r";
             print("    " + $processedLine + "\n");
-            fprint $fileId ($processedLine + "\n");  
+            fprint $fileId ($processedLine + "\n");
         }
-        
+
         // print output
         print("Output:\n");
         print("    " + $outputPath + "\n");
-            
+
         // close output path
         fclose $fileId;
-        
+
         // load module
         loadModuleExtended($outputPath, $path);
         return;
     }
-    
+
     // throw error as module has not been installed
     error("\nThe " + $moduleName + " module, version " + $moduleVersion + " could not be installed as non of the module paths were writable.");
 }

@@ -3,14 +3,17 @@
 change QtGui to QtWidgets
 """
 
+# Import future modules
+from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from __future__ import absolute_import
+
 
 __author__ = "timmyliang"
 __email__ = "820472580@qq.com"
 __date__ = "2021-11-27 12:26:46"
 
+# Import built-in modules
 import os
 import re
 
@@ -153,15 +156,15 @@ def main():
     output = os.path.join(DIR, "uiMaster.py")
     lines = []
     with open(target, "r") as f:
-        for i, l in enumerate(f.readlines()):
-            match = re.search(r"QtGui\.(\D+?)[^a-zA-Z]", l)
+        for i, line in enumerate(f.readlines()):
+            match = re.search(r"QtGui\.(\D+?)[^a-zA-Z]", line)
             if match:
                 # print(dir(match))
                 match = match.group(1)
                 if match not in gui_list:
                     print(match)
-                    l = l.replace("QtGui.","QtWidgets.")
-            lines.append(l)   
+                    line = line.replace("QtGui.", "QtWidgets.")
+            lines.append(line)
 
     with open(output, "w") as f:
         f.write("".join(lines))

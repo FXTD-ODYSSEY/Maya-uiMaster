@@ -1,0 +1,46 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: uiMaster_source.py
+      - id: end-of-file-fixer
+        exclude: uiMaster_source.py
+      - id: check-yaml
+      - id: check-ast
+        exclude: uiMaster_source.py
+      - id: check-toml
+      - id: check-added-large-files
+  - repo: https://github.com/ambv/black
+    rev: 21.9b0
+    hooks:
+      - id: black
+        language: python
+        types: [python]
+        exclude: uiMaster_source.py
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        name: isort (python)
+        exclude: uiMaster_source.py
+  - repo: https://gitlab.com/pycqa/flake8
+    rev: 3.7.9
+    hooks:
+      - id: flake8
+        exclude: uiMaster_source.py
+  # -   repo: local
+  #     hooks:
+  #     -   id: pylint
+  #         name: pylint
+  #         entry: pylint
+  #         language: system
+  #         types: [python]
+  #         args: ["--max-line-length=80", "--disable=E1101,R0912"]
+  # - repo: https://github.com/commitizen-tools/commitizen
+  #   rev: master
+  #   hooks:
+  #     - id: commitizen
+  #       stages: [commit-msg]

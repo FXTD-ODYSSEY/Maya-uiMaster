@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
+# Import future modules
+from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from __future__ import absolute_import
+
 
 # uiMaster - A Python plugin for Autodesk Maya
 # Copyright (C) 2016 by Brendan Kelly - Seattle, USA
@@ -14,11 +16,11 @@ __mayaVersion__ = "2014, 2015, 2016, 2016.5"
 __copyYear__ = "2016"
 __title__ = "uiMaster for Maya"
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # UIMASTER BETA LICENSE AGREEMENT
 # By using any part of uiMaster (the contents of this file),
 # you agree to the terms of this license.
-# 
+#
 # uiMaster (the "software") is the property of Brendan Kelly and, therefore,
 # is protected by international copyright law. And international copyright
 # ASSASSINS, probably.
@@ -30,7 +32,7 @@ __title__ = "uiMaster for Maya"
 # Seriously, don't blow people up with it.
 # Blowing up 3D models of people in Maya is fine and, indeed, encouraged.
 #
-# You may not, under any circumstances, remove or in any way alter 
+# You may not, under any circumstances, remove or in any way alter
 # this license agreement.
 #
 # You are prohibited from re-distributing copies of uiMaster to others.
@@ -43,16 +45,16 @@ __title__ = "uiMaster for Maya"
 # are prohibited from distributing your edited version of the software.
 #
 # The software is provided "AS IS", without any warranty for its past,
-# current or future functionality. Under no circumstances shall the 
-# author of the software be held liable for any claims or damages 
+# current or future functionality. Under no circumstances shall the
+# author of the software be held liable for any claims or damages
 # arising from the use of or other activities involving the software.
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 #
 # Now that that's out of the way... what's it do?
 #
 # Maya has lots of windows and editors. Things can easily get cluttered.
 # uiMaster is an easy-to-use tool for consolidating GUI windows in Maya.
-# It works with custom GUIs, (.ui, .py or .mel formats) 
+# It works with custom GUIs, (.ui, .py or .mel formats)
 # as well as native Maya editors.
 # Custom interfaces retain full functionality.
 # Initially designed for Rig UIs in busy scenes.
@@ -65,29 +67,33 @@ __title__ = "uiMaster for Maya"
 # With uiMaster.py in your plugins path,
 # call "uiMaster" from MEL command line in Maya.
 """
+# Import built-in modules
+from functools import partial
+import inspect
+
 #
 # Special thanks to Nathan Horne & Chris Zurbrigg -
 # for their excellent Qt for Maya learning resources!
 #
 import os
+import re
 import sys
-import maya.cmds as cmds
-from pymel import core as pm
-import maya.mel as mel
-import maya.OpenMaya as om
-import maya.OpenMayaUI as omui
-import maya.OpenMayaMPx as omPx
+import urllib
+
+# Import third-party modules
 from Qt import QtCore
 from Qt import QtGui
 from Qt import QtWidgets
 from Qt import _QtUiTools as QtUiTools
-from Qt.QtCompat import wrapInstance
 from Qt.QtCompat import getCppPointer
-from functools import partial
-import inspect
-import re
-import urllib
+from Qt.QtCompat import wrapInstance
 from __main__ import __dict__ as mainDict
+import maya.OpenMaya as om
+import maya.OpenMayaMPx as omPx
+import maya.OpenMayaUI as omui
+import maya.cmds as cmds
+import maya.mel as mel
+from pymel import core as pm
 
 
 """
@@ -95,43 +101,43 @@ from __main__ import __dict__ as mainDict
 #----------------------------------------------------------------------
 
 
-8888888b. 888                d8b         
-888   Y88b888                Y8P         
-888    888888                            
-888   d88P888888  888 .d88b. 88888888b.  
-8888888P" 888888  888d88P"88b888888 "88b 
-888       888888  888888  888888888  888 
-888       888Y88b 888Y88b 888888888  888 
-888       888 "Y88888 "Y88888888888  888 
-                          888            
-                     Y8b d88P            
-                      "Y88P"   
+8888888b. 888                d8b
+888   Y88b888                Y8P
+888    888888
+888   d88P888888  888 .d88b. 88888888b.
+8888888P" 888888  888d88P"88b888888 "88b
+888       888888  888888  888888888  888
+888       888Y88b 888Y88b 888888888  888
+888       888 "Y88888 "Y88888888888  888
+                          888
+                     Y8b d88P
+                      "Y88P"
 
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 """
 
-# Boilerplate
+
 class UiMasterCmd(omPx.MPxCommand):
     def __init__(self):
         omPx.MPxCommand.__init__(self)
-    
+
     # Instead of making Ui_uiMaster a subclass of QDockWidget,
     # (which results in Maya misinterpreting it a bit)
-    # Just make a generic dockWidget, then build the Ui_uiMaster class, 
+    # Just make a generic dockWidget, then build the Ui_uiMaster class,
     # instantiate, and stuff the instance inside the dockWidget.
     #
     def doIt(self, argList):
         # get auto flag - to see if it's being called
         # by a script node from a new scene
-        auto = (argList.flagIndex("a", "auto") != om.MArgList.kInvalidArgIndex)
+        auto = argList.flagIndex("a", "auto") != om.MArgList.kInvalidArgIndex
         makeUiMaster(auto)
 
-#
+
 def cmdCreator():
     return omPx.asMPxPtr(UiMasterCmd())
 
-#
+
 def initializePlugin(obj):
     plugin = omPx.MFnPlugin(obj, __author__, __version__, __mayaVersion__)
     try:
@@ -140,7 +146,7 @@ def initializePlugin(obj):
         cmds.warning("Failed to register uiMaster plugin!")
         raise
 
-#
+
 def uninitializePlugin(obj):
     plugin = omPx.MFnPlugin(obj)
     try:
@@ -154,17 +160,16 @@ def uninitializePlugin(obj):
 #
 def makeUiMaster(auto=False):
     print("Making uiMaster - auto: {0}".format(auto))
-    # Check for silliness - if this was 
+    # Check for silliness - if this was
     # called by scriptWin, do nothing.
-    # Otherwise, delete old widget, make new one - 
+    # Otherwise, delete old widget, make new one -
     # settings and uis should be saved
     mayaName = "uiMasterDockWidget"
     main = getMayaMainWindow()
     for c in main.children():
         if c.objectName() == mayaName and c.widget():
             if c.widget().scriptWin.safeMode:
-                cmds.warning("Right, stop that! Stop it. "
-                            "It's silly, very silly.")
+                cmds.warning("Right, stop that! Stop it. " "It's silly, very silly.")
                 return
             elif auto:
                 # just try to add from tabsNode using restoreSavedState
@@ -182,7 +187,7 @@ def makeUiMaster(auto=False):
     UiMasterWin = buildClass(Ui_uiMaster)
     uiMaster = UiMasterWin(uimDock)
     uimDock.setWidget(uiMaster)
-    
+
     uimDock.topLevelChanged.connect(uiMaster.reFloat)
     uimDock.visibilityChanged.connect(uiMaster.visChanged)
     # Event filter to pass uimDock's close signal to
@@ -195,7 +200,7 @@ def makeUiMaster(auto=False):
     uimDock.resize(5000, 5000)
     uimDock.resize(s)
     uiMaster.reFloat(uimDock.isFloating())
-    
+
     return uimDock
 
 
@@ -204,13 +209,13 @@ def makeUiMaster(auto=False):
 #----------------------------------------------------------------------
 
 
-888     888888   d8b888d8b888   d8b                 
-888     888888   Y8P888Y8P888   Y8P                 
-888     888888      888   888                       
-888     888888888888888888888888888 .d88b. .d8888b  
-888     888888   888888888888   888d8P  Y8b88K      
-888     888888   888888888888   88888888888"Y8888b. 
-Y88b. .d88PY88b. 888888888Y88b. 888Y8b.         X88 
+888     888888   d8b888d8b888   d8b
+888     888888   Y8P888Y8P888   Y8P
+888     888888      888   888
+888     888888888888888888888888888 .d88b. .d8888b
+888     888888   888888888888   888d8P  Y8b88K
+888     888888   888888888888   88888888888"Y8888b.
+Y88b. .d88PY88b. 888888888Y88b. 888Y8b.         X88
  "Y88888P"  "Y888888888888 "Y888888 "Y8888  88888P'
 
 
@@ -218,9 +223,11 @@ Y88b. .d88PY88b. 888888888Y88b. 888Y8b.         X88
 #----------------------------------------------------------------------
 """
 
-# Check website for new versions of uiMaster
-#
+
 def selfUpdate():
+    """
+    Check website for new versions of uiMaster
+    """
     main = getMayaMainWindow()
     win = QtWidgets.QMessageBox(main)
     win.setIcon(QtWidgets.QMessageBox.Information)
@@ -232,11 +239,11 @@ def selfUpdate():
         win.setText("\nUpdate URL invalid, please contact author.\n")
         win.exec_()
         return
-    
+
     content = newest.read()
     frame = {}
     try:
-        exec(content,frame)
+        exec(content, frame)
     except SyntaxError:
         win.setText("\nToo many URL requests, try again later.\n")
         win.exec_()
@@ -250,7 +257,7 @@ def selfUpdate():
         f = cmds.pluginInfo("uiMaster", q=True, path=True)
         with open(f, "w") as new:
             new.write(content)
-        
+
         win.setText("\nUpdate successful! Click OK to restart uiMaster.\n")
         win.exec_()
         cmds.unloadPlugin("uiMaster")
@@ -263,14 +270,18 @@ def selfUpdate():
 # for you to select one
 #
 def compileUI(inFile=None):
-    #import sys, pprint
+    # import sys, pprint
+    # Import third-party modules
     from pysideuic import compileUi
-    
+
     # File browser if no file given
     if inFile is None:
-        inFile = cmds.fileDialog2(caption="Compile Qt Ui",
-                    dialogStyle=2, fileMode=1,
-                    fileFilter="Qt Designer Files (*.ui)")[0]
+        inFile = cmds.fileDialog2(
+            caption="Compile Qt Ui",
+            dialogStyle=2,
+            fileMode=1,
+            fileFilter="Qt Designer Files (*.ui)",
+        )[0]
     outFile = inFile.replace(".ui", ".py")
     pyFile = open(outFile, "w")
     try:
@@ -291,7 +302,7 @@ def getMayaMainWindow():
     # returns a QWidget wrapper for the main maya window,
     # to allow uiMaster to be parented to it
     return pm.ui.toQtObject("MayaWindow")
-    
+
 
 # remember for entire Maya session
 customPaths = set()
@@ -302,21 +313,21 @@ customPaths = set()
 def addPathToSession(f=None):
     # File browser if no file given
     if f is None:
-        f = cmds.fileDialog2(caption="Add directory to path", 
-                                dialogStyle=2, fileMode=2)[0]
+        f = cmds.fileDialog2(
+            caption="Add directory to path", dialogStyle=2, fileMode=2
+        )[0]
 
-    add = False
     d = os.path.dirname(f).replace(os.sep, os.altsep)
     melPaths = mel.eval("getenv MAYA_SCRIPT_PATH").replace(os.sep, os.altsep)
     if d not in melPaths:
         new = melPaths + os.pathsep + d
-        mel.eval("putenv MAYA_SCRIPT_PATH \"{0}\"".format(new))
+        mel.eval('putenv MAYA_SCRIPT_PATH "{0}"'.format(new))
         customPaths.add(d)
         print("uiMaster: Added {0} to Maya Script Path".format(d))
     paths = [p.replace(os.sep, os.altsep) for p in sys.path]
     # make sure it's root path of package, if applicable
-    i = os.altsep+"__init__.py"
-    while os.path.exists(d+i):
+    i = os.altsep + "__init__.py"
+    while os.path.exists(d + i):
         d = os.path.dirname(d)
     if d not in paths:
         sys.path.append(d)
@@ -329,13 +340,14 @@ def addPathToSession(f=None):
 # and a QMainWindow, run __init__ and setupUi
 #
 def buildClass(clsName):
-    #clsName = parse file arg for class name
+    # clsName = parse file arg for class name
     class UiWidg(clsName, QtWidgets.QMainWindow):
         def __init__(self, parent=None):
             super(UiWidg, self).__init__(parent)
             # the compiled .py file has the content,
             # this class provides the QMainWindow to fill
             self.setupUi(self)
+
     return UiWidg
 
 
@@ -358,7 +370,7 @@ def resolveDependencies(lang, dependencies):
         addMelSourceFiles(dependencies)
     else:
         cmds.warning("Unrecognized file type for restore")
-        
+
 
 # import modules which were found to be required for py cmd
 #
@@ -373,7 +385,7 @@ def addPyModules(dependencies):
         # first of all, try to add directory
         if absPath:
             proj = cmds.workspace(q=True, rootDirectory=True)
-            relPath = os.path.normpath(proj+rel).replace(os.sep, os.altsep)
+            relPath = os.path.normpath(proj + rel).replace(os.sep, os.altsep)
             for f in (absPath, relPath):
                 if os.path.exists(f):
                     addPathToSession(f)
@@ -396,8 +408,7 @@ def addPyModules(dependencies):
         else:
             obj = getattr(mod, name)
         mainDict[word] = obj
-        print("Successfully imported {0}({1}) as {2}".format(
-                                                    name, mod, word))
+        print("Successfully imported {0}({1}) as {2}".format(name, mod, word))
 
         # old code using imp.load_source
         """
@@ -441,25 +452,25 @@ def addMelSourceFiles(dependencies):
     for word, absPath, rel in dependencies:
         # try a couple whatIs checks to see if:
         # 1) proc exists already, or
-        # 2) file exists in script path 
-        result = mel.eval("whatIs \"{0}\"".format(word))
+        # 2) file exists in script path
+        result = mel.eval('whatIs "{0}"'.format(word))
         if result.startswith("Mel procedure"):
             # already in
             continue
         fileName = os.path.basename(absPath)
-        result = mel.eval("whatIs \"{0}\"".format(fileName))
+        result = mel.eval('whatIs "{0}"'.format(fileName))
         if result.startswith("Script found"):
             # script file found in default path
-            mel.eval("source \"{0}\"".format(filename))
+            mel.eval('source "{0}"'.format(fileName))
             continue
 
         # check in saved abspath and project relative path
         proj = cmds.workspace(q=True, rootDirectory=True)
-        relPath = os.path.normpath(proj+rel).replace(os.sep, os.altsep)
+        relPath = os.path.normpath(proj + rel).replace(os.sep, os.altsep)
         for f in (absPath, relPath):
             if os.path.exists(f):
                 addPathToSession(f)
-                mel.eval("source \"{0}\"".format(f))
+                mel.eval('source "{0}"'.format(f))
                 break
         else:
             # skip this word
@@ -483,7 +494,7 @@ def getDependenciesInCode(lang, cmd):
     elif lang == "mel":
         return getMelSourceFiles(words)
     else:
-        cmds.warning("Specify \"python\" or \"mel\".")
+        cmds.warning('Specify "python" or "mel".')
         return []
 
 
@@ -517,7 +528,7 @@ def getPyModules(words):
                 continue
             data = (word, mod, name, isModule)
             modData.add(data)
-    
+
     return modData
 
 
@@ -527,7 +538,7 @@ def getPyModules(words):
 # if not, add entry to dependencies (word, absFile, relFile)
 #
 def getModuleDependencies(modData):
-    #paths = [a.replace(os.sep, os.altsep) for a in sys.path]
+    # paths = [a.replace(os.sep, os.altsep) for a in sys.path]
     # dependencies is a list of form (name, absFile, relFile)
     dependencies = []
     for word, mod, name, isModule in modData:
@@ -540,8 +551,8 @@ def getModuleDependencies(modData):
         else:
             f = f.replace(os.sep, os.altsep)
             d = os.path.dirname(f)
-            i = os.altsep+"__init__.py"
-            while os.path.exists(d+i):
+            i = os.altsep + "__init__.py"
+            while os.path.exists(d + i):
                 d = os.path.dirname(d)
             # test if directory is in customPaths,
             # a list of directories which have been added to sys.path
@@ -568,17 +579,17 @@ def getModuleDependencies(modData):
     return dependencies
 
 
-# For each word, find if it's file dependent and 
+# For each word, find if it's file dependent and
 # add f and relPath to dependencies
 #
 def getMelSourceFiles(words):
     dependencies = set()
-    #paths = os.getenv("MAYA_SCRIPT_PATH")
-    #paths = paths.replace(os.sep, os.altsep).split(os.pathsep)
+    # paths = os.getenv("MAYA_SCRIPT_PATH")
+    # paths = paths.replace(os.sep, os.altsep).split(os.pathsep)
 
     for word in words:
         try:
-            result = mel.eval("whatIs \"{0}\"".format(word))
+            result = mel.eval('whatIs "{0}"'.format(word))
         except RuntimeError:
             # means there was a MEL problem with the word
             continue
@@ -612,25 +623,29 @@ def fixFullscreenScript(name, allUIs):
     # Dictionary of all of the "special" Maya UIs, which are
     # hidden by fullscreen mode and need a bit of special treatment
     #
-    stupidUiDict = {"Tool Settings": "setToolSettingsVisible",
-                "Channel Box": "setChannelsVisible",
-                "Layer Editor": "setLayersVisible",
-                "Channel Box / Layer Editor": "setChannelsLayersVisible",
-                "Attribute Editor": "setAttributeEditorVisible"}
+    stupidUiDict = {
+        "Tool Settings": "setToolSettingsVisible",
+        "Channel Box": "setChannelsVisible",
+        "Layer Editor": "setLayersVisible",
+        "Channel Box / Layer Editor": "setChannelsLayersVisible",
+        "Attribute Editor": "setAttributeEditorVisible",
+    }
     if name in stupidUiDict.keys():
         # have to make a new version of setAllMainWindowComponentsVisible script
         # and run it WITHOUT making a new file
         # so there's no danger if it interfering with later stuff
         #
-        original = (mel.eval("getenv MAYA_LOCATION")
-                +"/scripts/startup/setAllMainWindowComponentsVisible.mel")
+        original = (
+            mel.eval("getenv MAYA_LOCATION")
+            + "/scripts/startup/setAllMainWindowComponentsVisible.mel"
+        )
         with open(original) as f:
             contents = f.read()
         names = list(set([a[0] for a in allUIs]) & set(stupidUiDict.keys()))
         for n in names:
             cmd = stupidUiDict[n]
             # basically just comment out the lines which set visible state
-            contents = contents.replace(cmd, ("//"+cmd))
+            contents = contents.replace(cmd, ("//" + cmd))
         # eval in mel to overwrite existing proc
         mel.eval(contents)
 
@@ -642,19 +657,19 @@ def fixFullscreenScript(name, allUIs):
 #----------------------------------------------------------------------
 
 
- 
 
-888    888        888                           .d8888b. 888                                         
-888    888        888                          d88P  Y88b888                                         
-888    888        888                          888    888888                                         
-8888888888 .d88b. 88888888b.  .d88b. 888d888   888       888 8888b. .d8888b .d8888b  .d88b. .d8888b  
-888    888d8P  Y8b888888 "88bd8P  Y8b888P"     888       888    "88b88K     88K     d8P  Y8b88K      
-888    88888888888888888  88888888888888       888    888888.d888888"Y8888b."Y8888b.88888888"Y8888b. 
-888    888Y8b.    888888 d88PY8b.    888       Y88b  d88P888888  888     X88     X88Y8b.         X88 
-888    888 "Y8888 88888888P"  "Y8888 888        "Y8888P" 888"Y888888 88888P' 88888P' "Y8888  88888P' 
-                     888                                                                             
-                     888                                                                             
-                     888      
+
+888    888        888                           .d8888b. 888
+888    888        888                          d88P  Y88b888
+888    888        888                          888    888888
+8888888888 .d88b. 88888888b.  .d88b. 888d888   888       888 8888b. .d8888b .d8888b  .d88b. .d8888b
+888    888d8P  Y8b888888 "88bd8P  Y8b888P"     888       888    "88b88K     88K     d8P  Y8b88K
+888    88888888888888888  88888888888888       888    888888.d888888"Y8888b."Y8888b.88888888"Y8888b.
+888    888Y8b.    888888 d88PY8b.    888       Y88b  d88P888888  888     X88     X88Y8b.         X88
+888    888 "Y8888 88888888P"  "Y8888 888        "Y8888P" 888"Y888888 88888P' 88888P' "Y8888  88888P'
+                     888
+                     888
+                     888
 
 
 #----------------------------------------------------------------------
@@ -664,23 +679,25 @@ def fixFullscreenScript(name, allUIs):
 # Object to handle reference callbacks - creating, removing
 # and functions for when they trigger
 #
-class SceneCallbackHandler():
+class SceneCallbackHandler:
     def __init__(self):
         self.ref = None
         # BEFORE new reference callback
         self.beforeID = om.MSceneMessage.addCallback(
-                om.MSceneMessage.kBeforeCreateReference, self.beforeRef)
+            om.MSceneMessage.kBeforeCreateReference, self.beforeRef
+        )
         # AFTER new reference callback
         self.afterID = om.MSceneMessage.addCallback(
-                om.MSceneMessage.kAfterCreateReference, self.afterRef)
+            om.MSceneMessage.kAfterCreateReference, self.afterRef
+        )
 
-    # perhaps append/pop? 
+    # perhaps append/pop?
     # since nested references will trigger as begin-begin-end-end
     def beforeRef(self, *argsList):
         self.ref = om.MFileIO.beforeReferenceFilename()
 
         print("beginning {0}".format(self.ref))
-    
+
     def afterRef(self, *argsList):
         if not self.ref:
             return
@@ -700,13 +717,13 @@ class TabBar(QtWidgets.QTabBar):
         self.base = super(TabBar, self)
         self.base.__init__(parent)
         self.pane = None
-        #self.setAcceptDrops(True)
+        # self.setAcceptDrops(True)
         self.dragData = None
         self.dragPix = None
-    
+
     def tabSizeHint(self, index):
         old = self.base.tabSizeHint(index)
-        return (old+QtCore.QSize(100, 20)) / 2
+        return (old + QtCore.QSize(100, 20)) / 2
 
     def mouseMoveEvent(self, event):
         self.base.mouseMoveEvent(event)
@@ -715,7 +732,7 @@ class TabBar(QtWidgets.QTabBar):
         self.setCurrentIndex(index)
         if event.buttons() != QtCore.Qt.LeftButton or index == -1:
             return
-        
+
         d = QtGui.QDrag(self)
         data = QtCore.QMimeData()
         data.setParent(self)
@@ -725,13 +742,12 @@ class TabBar(QtWidgets.QTabBar):
         stuff = [index, self.tabText(index), leftD, rightD]
         data.setData("uiTabData", QtCore.QByteArray(str(stuff).encode("utf-8")))
         d.setMimeData(data)
-        
+
         rect.setWidth(rect.width() - 1)
         self.dragPix = QtGui.QPixmap.grabWidget(self, rect)
 
         d.setDragCursor(QtGui.QPixmap(1, 1), QtCore.Qt.MoveAction)
         d.start(QtCore.Qt.MoveAction)
-
 
     # New tab bar receives event!
     # If it's not the source, move tab to new pane
@@ -745,39 +761,36 @@ class TabBar(QtWidgets.QTabBar):
         stuff = eval(bytes(stuff).decode("utf-8"))
         event.accept()
         index = stuff[0]
-        name = stuff[1]
         self.buttonVis(False)
         self.setTabsClosable(False)
 
-        # add to tabbar right here, 
+        # add to tabbar right here,
         # transition to regular tab moving
         prev = data.parent()
         if self != prev:
-            index = self.pane.uim.moveTabToNewPane(
-                                            index, prev.pane, self.pane)
+            index = self.pane.uim.moveTabToNewPane(index, prev.pane, self.pane)
             stuff[0] = index
-            
+
             # fix leftD and rightD for possible new rect size
             rect = self.tabRect(index)
             leftD = stuff[2]
             rightD = stuff[3]
             extra = rect.width() - leftD - rightD
-            stuff[2] = leftD + (extra/2)
-            stuff[3] = rightD + (extra/2) + (extra%2)
-            
-            #prev.setTabsClosable(True)
-            #prev.buttonVis(True)
-            #self.buttonVis(False)
-            #self.setTabsClosable(False)
+            stuff[2] = leftD + (extra / 2)
+            stuff[3] = rightD + (extra / 2) + (extra % 2)
+
+            # prev.setTabsClosable(True)
+            # prev.buttonVis(True)
+            # self.buttonVis(False)
+            # self.setTabsClosable(False)
             rect.setWidth(rect.width() - 1)
             self.dragPix = QtGui.QPixmap.grabWidget(self, rect)
             data.setData("uiTabData", str(stuff).encode("utf-8"))
             data.setParent(self)
-        #self.tabButton(index, QtWidgets.QTabBar.RightSide).hide()
+        # self.tabButton(index, QtWidgets.QTabBar.RightSide).hide()
         self.dragData = stuff
 
-    
-    # Move tabs within tabbar - 
+    # Move tabs within tabbar -
     def dragMoveEvent(self, event):
         if not self.dragData:
             event.ignore()
@@ -794,13 +807,13 @@ class TabBar(QtWidgets.QTabBar):
         rightI = index + 1
         leftNeighbor = self.tabRect(leftI)
         rightNeighbor = self.tabRect(rightI)
-        
+
         # answerRect is a more accurate version of where the mouse is than .pos()
         horPos = event.answerRect().left()
         left = horPos - leftD
         right = horPos + rightD
-        
-        # test if user has dragged cursor so that 
+
+        # test if user has dragged cursor so that
         # tabRect goes more than halfway into its neighbor -
         # if so, swap em.
         for n, i in ((leftNeighbor, leftI), (rightNeighbor, rightI)):
@@ -817,32 +830,29 @@ class TabBar(QtWidgets.QTabBar):
                     stuff[0] = i
                     data.setData("uiTabData", str(stuff).encode("utf-8"))
                     self.dragData = stuff
-        
+
         self.repaint(self.rect())
-        
-    
+
     def dropEvent(self, event):
-        #if not self.dragData:
+        # if not self.dragData:
         #    event.ignore()
         #    return
-        i = self.dragData[0]
         self.setTabsClosable(True)
         self.buttonVis(True)
         self.dragData = None
         self.repaint(self.rect())
         event.accept()
-        
+
     def dragLeaveEvent(self, event):
-        #if not self.dragData:
+        # if not self.dragData:
         #    event.ignore()
         #    return
-        i = self.dragData[0]
         self.setTabsClosable(True)
         self.buttonVis(True)
         self.dragData = None
         self.repaint(self.rect())
         event.accept()
-    
+
     def paintEvent(self, event):
         self.base.paintEvent(event)
         if self.dragData:
@@ -854,10 +864,10 @@ class TabBar(QtWidgets.QTabBar):
             loc = self.mapFromGlobal(QtGui.QCursor.pos())
             offset = loc.x() - self.dragData[2]
             rect.moveLeft(offset)
-            #button = self.tabButton(index, QtWidgets.QTabBar.RightSide)
-            #button.move((rect.right() - 36), button.y())
+            # button = self.tabButton(index, QtWidgets.QTabBar.RightSide)
+            # button.move((rect.right() - 36), button.y())
             p.drawPixmap(rect, self.dragPix)
-            del(p)
+            del p
 
     def buttonVis(self, state):
         count = self.count()
@@ -873,7 +883,7 @@ class TabBar(QtWidgets.QTabBar):
         self.currentChanged.emit(self.currentIndex())
 
 
-# Subclass of QGraphicsProxyWidget - 
+# Subclass of QGraphicsProxyWidget -
 # to deal with wheel events and resizing
 #
 class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
@@ -922,13 +932,12 @@ class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
             w = self.widget()
             if w and w.windowTitle() == "Tool Settings":
                 # more stupid tool settings edge cases...
-                # no, please, tool settings, please tell me more stories 
+                # no, please, tool settings, please tell me more stories
                 # about what it was like to grow up in the 1930s...
-                # oh what's that? 
+                # oh what's that?
                 # you remember when movies had values and soul?
                 # great...
                 cmds.ToolSettingsWindow()
-
 
     # instead of global enable/disable for focus in/out,
     # find all hotkeys and block their signals
@@ -945,7 +954,7 @@ class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
             else:
                 a.setProperty("uiMasterEnabled", a.isEnabled())
                 a.setEnabled(False)
-                #a.blockSignals(not state)
+                # a.blockSignals(not state)
 
 
 """
@@ -955,17 +964,17 @@ class GraphicsProxy(QtWidgets.QGraphicsProxyWidget):
 
 
 
-8888888b.                                   888     888d8b                      
-888   Y88b                                  888     888Y8P                      
-888    888                                  888     888                         
-888   d88P888d888 .d88b. 888  888888  888   Y88b   d88P888 .d88b. 888  888  888 
-8888888P" 888P"  d88""88b`Y8bd8P'888  888    Y88b d88P 888d8P  Y8b888  888  888 
-888       888    888  888  X88K  888  888     Y88o88P  88888888888888  888  888 
-888       888    Y88..88P.d8""8b.Y88b 888      Y888P   888Y8b.    Y88b 888 d88P 
-888       888     "Y88P" 888  888 "Y88888       Y8P    888 "Y8888  "Y8888888P"  
-                                      888                                       
-                                 Y8b d88P                                       
-                                  "Y88P"                                      
+8888888b.                                   888     888d8b
+888   Y88b                                  888     888Y8P
+888    888                                  888     888
+888   d88P888d888 .d88b. 888  888888  888   Y88b   d88P888 .d88b. 888  888  888
+8888888P" 888P"  d88""88b`Y8bd8P'888  888    Y88b d88P 888d8P  Y8b888  888  888
+888       888    888  888  X88K  888  888     Y88o88P  88888888888888  888  888
+888       888    Y88..88P.d8""8b.Y88b 888      Y888P   888Y8b.    Y88b 888 d88P
+888       888     "Y88P" 888  888 "Y88888       Y8P    888 "Y8888  "Y8888888P"
+                                      888
+                                 Y8b d88P
+                                  "Y88P"
 
 
 #----------------------------------------------------------------------
@@ -984,24 +993,23 @@ class WidgProxyView(QtWidgets.QGraphicsView):
         self.proxyDrag = False
         self.dragTarget = None
         self.topLevelTarget = None
-        # each view needs a child focus filter, so that 
+        # each view needs a child focus filter, so that
         # currProxy and widget can be reliably found
         self.childFocusFilter = ChildFocusFilter(self)
 
-    
     def currProxy(self):
         index = self.pane.uiTabBar.currentIndex()
         proxy = None
         if index != -1:
             proxy = self.pane.loadedUIs[index][3]
         return proxy
-    
+
     def resizeEvent(self, event):
         self.base.resizeEvent(event)
         proxy = self.currProxy()
         if proxy and proxy.widget():
             size = event.size()
-            #proxy.widget().resize(size)
+            # proxy.widget().resize(size)
             proxy.widget().setMinimumSize(size)
             proxy.widget().setMaximumSize(size)
             self.matchPos(proxy)
@@ -1022,9 +1030,8 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             self.incrementSplitter(self.pane.parent(), p[1], step)
 
             event.accept()
-            return 
+            return
         self.base.wheelEvent(event)
-
 
     # increase/decrease size of given widget within parent splitter
     #
@@ -1036,11 +1043,10 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             if i == widgIndex:
                 sizes[i] += step
             else:
-                sizes[i] -= (step / (n - 1))
-        
+                sizes[i] -= step / (n - 1)
+
         spl.setSizes(sizes)
-    
-    
+
     # catch focusIn and make it enable currUI
     #
     def focusInEvent(self, event):
@@ -1049,13 +1055,13 @@ class WidgProxyView(QtWidgets.QGraphicsView):
         if not proxy or not proxy.widget():
             return
         proxy.widget().setEnabled(True)
-        #proxy.setHotkeysEnabled(True)
+        # proxy.setHotkeysEnabled(True)
         proxy.show()
         self.scene().setFocusItem(proxy)
 
         self.prevProxy = proxy
         self.matchPos(proxy)
-        
+
         # refocusing from a popup bugs out the popup, making it unusable
         # and at times generating fatal errors
         if event.reason() != QtCore.Qt.FocusReason.PopupFocusReason:
@@ -1072,7 +1078,6 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             else:
                 proxy.widget().setFocus()
 
-    
     # Disable currUI when focus is lost, unless
     # focus is being given to a child
     #
@@ -1091,7 +1096,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             widg.setProperty("proxyFocus", focus)
 
         # If new focus is not the uiView, either it's modal or not.
-        # Kind of need to tiptoe around modal widgets, 
+        # Kind of need to tiptoe around modal widgets,
         # they tend to blow up if you use findChildren().
         # In either case, check for abstract scroll areas
         # due to Qt bug with bypassgraphicsproxy flag and scroll areas.
@@ -1119,7 +1124,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
                     self.scene().setFocusItem(None)
                     widg = self.prevProxy.widget()
                     widg.setEnabled(False)
-                    #self.prevProxy.setHotkeysEnabled(False)
+                    # self.prevProxy.setHotkeysEnabled(False)
         # this is the case for popups - focus IS self still.
         # docs say both parent and popup are "active window"
         elif event.reason() == QtCore.Qt.FocusReason.PopupFocusReason:
@@ -1133,7 +1138,6 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             if grabber:
                 grabber.ungrabMouse()
 
-
     def forceRefocus(self):
         self.activateWindow()
         self.pane.uiTabBar.setFocus()
@@ -1142,7 +1146,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
     # Scroll areas in child windows of graphics proxy'd widgets
     # are BUGGED if the bypassgraphicsproxywidget flag is set.
     # They do not properly update on their own when scrolled.
-    # 
+    #
     def forceScrollAreaUpdate(self, win):
         self.forceScrollAreaInstantiation(win)
         scrollAreas = win.findChildren(QtWidgets.QAbstractScrollArea)
@@ -1170,7 +1174,6 @@ class WidgProxyView(QtWidgets.QGraphicsView):
                 c.view()
             self.forceScrollAreaInstantiation(c)
 
-
     # React to being moved, move proxy along with
     #
     def moveEvent(self, event):
@@ -1191,27 +1194,28 @@ class WidgProxyView(QtWidgets.QGraphicsView):
     # Attempt to deal with proxy/widget being destroyed
     # by means outside of uiMaster's control - e.g., cmds.deleteUI
     # Sometimes, though, widgets refresh themselves on scene reset,
-    # resulting in a false triggering of this. 
+    # resulting in a false triggering of this.
     #
     def widgetKilled(self):
-        l = self.pane.loadedUIs
-        for i in xrange(len(l)):
+        loaded_uis = self.pane.loadedUIs
+        for i in xrange(len(loaded_uis)):
             try:
                 # WILL throw error if it's been destroyed
-                l[i][3].widget()
+                loaded_uis[i][3].widget()
             except RuntimeError:
-                n = l[i][0]
-                src = l[i][1]
+                n = loaded_uis[i][0]
+                src = loaded_uis[i][1]
                 curr = self.pane.uiTabBar.currentIndex()
-                cmds.warning("uiMaster: Error retrieving UI \"{0}\". "
-                                "Removed.".format(n))
+                cmds.warning(
+                    'uiMaster: Error retrieving UI "{0}". ' "Removed.".format(n)
+                )
                 self.pane.deleteTab(i, True)
-                QtCore.QTimer.singleShot(300, partial(
-                                    self.delayedRefreshCheck, n, src, i, curr))
+                QtCore.QTimer.singleShot(
+                    300, partial(self.delayedRefreshCheck, n, src, i, curr)
+                )
                 break
             except:
                 raise
-        
 
     # immediate check of getMayaChild results in error because
     # object construction is not yet complete
@@ -1225,7 +1229,6 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             self.pane.uiTabBar.moveTab(newI, index)
             self.pane.uiTabBar.setCurrentIndex(curr)
 
-    
     # UIVIEW is the first to receive drag and drop events,
     # so have to filter through and see who accepts it.
     # order: proxy -> (tab -> pane) (-> auto accept, so that
@@ -1246,16 +1249,15 @@ class WidgProxyView(QtWidgets.QGraphicsView):
         target = self.getDragDropTarget(event, w)
         # attempt to save relative reference as a property in widget
         w.setProperty("topDragTarget", target)
-        # Send dragEnter event that propogates up 
+        # Send dragEnter event that propogates up
         # proxyDrag is True if the widget wants the event
         self.proxyDrag = self.tryEnterEvent(event, target, w)
-
 
     # Move events are much different, because they are all
     # possible enter events for a different widget inside the graphicsscene
     #
     def dragMoveEvent(self, event):
-        # Move events are auto-accepted, so have to 
+        # Move events are auto-accepted, so have to
         # explicitly ignore so that it goes to the right place
         event.setAccepted(False)
         p = self.currProxy()
@@ -1272,67 +1274,70 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             # send dragLeave enter to previous target
             dragTarget = w.property("dragTarget")
             if dragTarget:
-                QtWidgets.QApplication.sendEvent(
-                                    dragTarget, QtGui.QDragLeaveEvent())
+                QtWidgets.QApplication.sendEvent(dragTarget, QtGui.QDragLeaveEvent())
             # Send enter event to new target and propogate up
             self.proxyDrag = self.tryEnterEvent(event, target, w)
-        
-        if self.proxyDrag:# and self.dragTarget:
-            # if an enter event has been accepted, send 
+
+        if self.proxyDrag:  # and self.dragTarget:
+            # if an enter event has been accepted, send
             # the regular move event to self.dragTarget
             dragTarget = w.property("dragTarget")
             tPos = dragTarget.mapFrom(w, event.pos())
-            widgEvent = QtGui.QDragMoveEvent(tPos, event.possibleActions(), 
-                                event.mimeData(), event.mouseButtons(), 
-                                event.keyboardModifiers())
+            widgEvent = QtGui.QDragMoveEvent(
+                tPos,
+                event.possibleActions(),
+                event.mimeData(),
+                event.mouseButtons(),
+                event.keyboardModifiers(),
+            )
             widgEvent.setDropAction(event.dropAction())
             self.sendDragDropEvent(event, widgEvent, dragTarget)
 
-        #if self.proxyDrag:
-            #self.base.dragMoveEvent(event)
-            #self.sendDragDropEvent(event)
+        # if self.proxyDrag:
+        # self.base.dragMoveEvent(event)
+        # self.sendDragDropEvent(event)
         if not event.isAccepted():
             self.pane.dragMoveEvent(event)
 
-
     def dragLeaveEvent(self, event):
-        if self.proxyDrag:# and self.dragTarget:
+        if self.proxyDrag:  # and self.dragTarget:
             w = self.currProxy().widget()
-            #w.setEnabled(False)
+            # w.setEnabled(False)
             dragTarget = w.property("dragTarget")
-            QtWidgets.QApplication.sendEvent(
-                                dragTarget, QtGui.QDragLeaveEvent())
+            QtWidgets.QApplication.sendEvent(dragTarget, QtGui.QDragLeaveEvent())
             self.proxyDrag = False
             w.setProperty("dragTarget", None)
             w.setProperty("topDragTarget", None)
         else:
             self.pane.dragLeaveEvent(event)
 
-
     def dropEvent(self, event):
-        if self.proxyDrag:# and self.dragTarget:
+        if self.proxyDrag:  # and self.dragTarget:
             w = self.currProxy().widget()
             dragTarget = w.property("dragTarget")
             tPos = dragTarget.mapFrom(w, event.pos())
-            widgEvent = QtGui.QDropEvent(tPos, event.possibleActions(), 
-                                event.mimeData(), event.mouseButtons(), 
-                                event.keyboardModifiers())
+            widgEvent = QtGui.QDropEvent(
+                tPos,
+                event.possibleActions(),
+                event.mimeData(),
+                event.mouseButtons(),
+                event.keyboardModifiers(),
+            )
             self.sendDragDropEvent(event, widgEvent, dragTarget)
             self.proxyDrag = False
             w.setProperty("dragTarget", None)
             w.setProperty("topDragTarget", None)
         else:
             self.pane.dropEvent(event)
-        
+
         self.activateWindow()
         self.pane.uiTabBar.setFocus()
         self.setFocus()
 
-
     # isolate the current CHILD WIDGET - send event to it
     # perform checks, enable, send event.
     # There is a bit of offset so a new event of the same type
-    # must be sent because stupid drag events don't have a 
+    # must be sent because stupid drag events don't have a
     # stupid .setPos() method
     def getDragDropTarget(self, event, w):
         t = w.childAt(event.pos())
@@ -1340,14 +1345,12 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             t = w
         return t
 
-
     def sendDragDropEvent(self, event, widgEvent, target):
         QtWidgets.QApplication.sendEvent(target, widgEvent)
         event.setAccepted(widgEvent.isAccepted())
         return event.isAccepted()
 
-
-    # Send new dragEnter event to target 
+    # Send new dragEnter event to target
     # and propgate it up to all parents.
     #
     def tryEnterEvent(self, event, target, w):
@@ -1367,11 +1370,15 @@ class WidgProxyView(QtWidgets.QGraphicsView):
 
         # Base case - make new enter event
         tPos = target.mapFrom(w, event.pos())
-        widgEvent = QtGui.QDragEnterEvent(tPos, event.possibleActions(), 
-                                event.mimeData(), event.mouseButtons(), 
-                                event.keyboardModifiers())
+        widgEvent = QtGui.QDragEnterEvent(
+            tPos,
+            event.possibleActions(),
+            event.mimeData(),
+            event.mouseButtons(),
+            event.keyboardModifiers(),
+        )
         widgEvent.setDropAction(event.proposedAction())
-        
+
         result = self.sendDragDropEvent(event, widgEvent, target)
         event.setDropAction(widgEvent.dropAction())
 
@@ -1382,7 +1389,6 @@ class WidgProxyView(QtWidgets.QGraphicsView):
         else:
             return self.tryEnterEvent(event, target.parentWidget(), w)
 
-
     # Try to intercept help events so tooltips can last longer
     #
     def viewportEvent(self, event):
@@ -1392,7 +1398,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
             if p and p.widget():
                 w = p.widget()
                 # send a manufactured help event event to subwidget
-                # 
+                #
                 gPos = QtGui.QCursor.pos()
                 pos = w.mapFromGlobal(gPos)
                 targ = w.childAt(pos)
@@ -1401,7 +1407,7 @@ class WidgProxyView(QtWidgets.QGraphicsView):
                 QtWidgets.QApplication.sendEvent(targ, ttEvent)
                 event.setAccepted(ttEvent.isAccepted())
                 return event.isAccepted()
-            
+
         return self.base.viewportEvent(event)
 
 
@@ -1412,14 +1418,14 @@ class WidgProxyView(QtWidgets.QGraphicsView):
 
 
 
-888     888d8b8888888b.                          
-888     888Y8P888   Y88b                         
-888     888   888    888                         
-888     888888888   d88P 8888b. 88888b.  .d88b.  
-888     8888888888888P"     "88b888 "88bd8P  Y8b 
-888     888888888       .d888888888  88888888888 
-Y88b. .d88P888888       888  888888  888Y8b.     
- "Y88888P" 888888       "Y888888888  888 "Y8888    
+888     888d8b8888888b.
+888     888Y8P888   Y88b
+888     888   888    888
+888     888888888   d88P 8888b. 88888b.  .d88b.
+888     8888888888888P"     "88b888 "88bd8P  Y8b
+888     888888888       .d888888888  88888888888
+Y88b. .d88P888888       888  888888  888Y8b.
+ "Y88888P" 888888       "Y888888888  888 "Y8888
 
 
 
@@ -1427,12 +1433,14 @@ Y88b. .d88P888888       888  888888  888Y8b.
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 """
+
+
 class UiPane(QtWidgets.QWidget):
     def __init__(self, parent, vIndex, hIndex, uim):
         self.base = super(UiPane, self)
         self.base.__init__(parent)
         # loadedUIs[i][0] = name
-        # loadedUIs[i][1] = source 
+        # loadedUIs[i][1] = source
         # loadedUIs[i][2] = size
         # loadedUIs[i][3] = proxy(not saved)
         # loadedUIs[i][4] = focus widget
@@ -1452,8 +1460,9 @@ class UiPane(QtWidgets.QWidget):
         self.welcomeScreen = QtWidgets.QWidget(self)
         self.layout = QtWidgets.QVBoxLayout(self.welcomeScreen)
         self.welcomeScreen.setLayout(self.layout)
-        self.label = QtWidgets.QLabel("Drag and drop tabs or files here.", 
-                                    self.welcomeScreen)
+        self.label = QtWidgets.QLabel(
+            "Drag and drop tabs or files here.", self.welcomeScreen
+        )
         self.label.setAlignment(QtCore.Qt.AlignCenter)
         self.layout.addWidget(self.label)
         self.layout.setAlignment(QtCore.Qt.AlignCenter)
@@ -1462,14 +1471,17 @@ class UiPane(QtWidgets.QWidget):
         self.button = QtWidgets.QPushButton(self.welcomeScreen)
         self.button.setText("Delete Pane")
         self.button.setToolTip("Delete this pane")
-        self.button.setSizePolicy(QtWidgets.QSizePolicy.Maximum, 
-                                    QtWidgets.QSizePolicy.Maximum)
+        self.button.setSizePolicy(
+            QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum
+        )
         self.horiz.addWidget(self.button)
         self.verticalLayout.addWidget(self.welcomeScreen)
 
         # uiWidget - tabbar and uiview
         self.uiWidget = QtWidgets.QWidget(self)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.uiWidget.sizePolicy().hasHeightForWidth())
@@ -1486,8 +1498,9 @@ class UiPane(QtWidgets.QWidget):
         #
         self.uiTabBar = TabBar(self.uiWidget)
         self.uiTabBar.pane = self
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, 
-            QtWidgets.QSizePolicy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.uiTabBar.sizePolicy().hasHeightForWidth())
@@ -1499,8 +1512,9 @@ class UiPane(QtWidgets.QWidget):
 
         self.uiView = WidgProxyView(self.uim.uiScene, self.uiWidget, self)
         self.uiView.setMinimumSize(QtCore.QSize(20, 20))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, 
-            QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+        )
         self.uiView.setSizePolicy(sizePolicy)
         self.uiView.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
         self.uiView.setAcceptDrops(True)
@@ -1508,7 +1522,7 @@ class UiPane(QtWidgets.QWidget):
         self.uiView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.uiView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.uiView.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        #self.uiView.setFrameShape(QtWidgets.QFrame.Shape.Box)
+        # self.uiView.setFrameShape(QtWidgets.QFrame.Shape.Box)
         self.uiView.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.uiView.setObjectName("uiView")
         self.meatLayout.addWidget(self.uiView)
@@ -1524,10 +1538,8 @@ class UiPane(QtWidgets.QWidget):
         self.uiTabBar.currentChanged.connect(self.changeTab)
         self.uiTabBar.tabMoved.connect(self.moveTab)
 
-
     def minimumSizeHint(self):
         return QtCore.QSize(75, 75)
-
 
     # TAB METHODS - mostly lifted from Ui_uiWidg
     # Close a tab - removes associated entry in loadedUIs
@@ -1544,7 +1556,6 @@ class UiPane(QtWidgets.QWidget):
             self.welcomeScreen.show()
         self.uim.saveState()
 
-
     # Called by signal "currentChanged"
     # Gets size of the widget inside the new tab
     # and resizes uiMaster
@@ -1554,11 +1565,11 @@ class UiPane(QtWidgets.QWidget):
         main = getMayaMainWindow()
 
         # Resize conditions:
-        # (option is checked OR initializing[=initial sizing]) 
+        # (option is checked OR initializing[=initial sizing])
         # AND not maximized
-        conditions = ((self.uim.settingsWin.resizeCheck.isChecked()
-                    or self.uim.initializing)
-                    and not par.isMaximized())
+        conditions = (
+            self.uim.settingsWin.resizeCheck.isChecked() or self.uim.initializing
+        ) and not par.isMaximized()
         if index != -1:
             # FIRST - ensure valid index
             try:
@@ -1588,7 +1599,7 @@ class UiPane(QtWidgets.QWidget):
                     else:
                         val = 0
                     p.setZValue(val)
-                    #p.widget().setEnabled(val)
+                    # p.widget().setEnabled(val)
                     p.widget().setVisible(val)
                 else:
                     deadProxies.append(self.loadedUIs.index(x))
@@ -1597,21 +1608,23 @@ class UiPane(QtWidgets.QWidget):
                 self.deleteTab(i)
 
             # evalDeferred the re-source, AFTER visibility change
-            mel.eval("evalDeferred \"source restoreLastPanelWithFocus.mel\"")
+            mel.eval('evalDeferred "source restoreLastPanelWithFocus.mel"')
             # cycle focus back to trigger focusInEvent
             self.activateWindow()
             self.uiView.setFocus()
 
-            #mainDict["uiMasterFocus"] = self.uiView
-            #cmds.evalDeferred("uiMasterFocus.setFocus()")
-           
+            # mainDict["uiMasterFocus"] = self.uiView
+            # cmds.evalDeferred("uiMasterFocus.setFocus()")
+
             # if whole window resize is not desired
             # AND it's NOT initializing
             # proxy must resize to fill uiView. trigger resizeEvent.
-            if (not self.uim.settingsWin.resizeCheck.isChecked() 
-                    or par.isMaximized() 
-                    or self.uim.mode == "panes" 
-                    and not self.uim.initializing):
+            if (
+                not self.uim.settingsWin.resizeCheck.isChecked()
+                or par.isMaximized()
+                or self.uim.mode == "panes"
+                and not self.uim.initializing
+            ):
                 s = self.uiView.size()
                 self.uiView.resizeEvent(QtGui.QResizeEvent(s, s))
 
@@ -1627,7 +1640,6 @@ class UiPane(QtWidgets.QWidget):
                 # force update
                 par.updateGeometry()
 
-
     # Convert widget size to uiMaster size
     #
     def padWidgSize(self, s):
@@ -1635,13 +1647,15 @@ class UiPane(QtWidgets.QWidget):
         # For pane mode, size must be... what? Doesn't matter, since
         # pane mode ignores the stored size. So size should be the same.
         q = QtCore.QSize(s[0], s[1])
-        size = (q + self.uim.size() 
-                - self.uim.mainSplitter.size() 
-                + QtCore.QSize(0, self.uiTabBar.height()))
+        size = (
+            q
+            + self.uim.size()
+            - self.uim.mainSplitter.size()
+            + QtCore.QSize(0, self.uiTabBar.height())
+        )
         if not size.isValid():
             size = QtCore.QSize(300, 485)
-        return size   
-
+        return size
 
     # Called when a tab is moved:
     # inputs are old and new index
@@ -1655,32 +1669,34 @@ class UiPane(QtWidgets.QWidget):
         # doesn't seem necessary ?
         self.uim.saveState()
 
-    
     # Take widget, make it a new tab
     # and manage state
     #
     def widgToTab(self, widg, baseName, source):
-        notAllowed = [getMayaMainWindow(), self.uim, self.uim.parent(),
-                        self.uim.scriptWin, self.uim.infoWin, 
-                        self.uim.settingsWin, self.uim.newPaneWin]
-        if widg in notAllowed or baseName == __title__ or isinstance(
-                                                        widg, Ui_uiMaster):
+        notAllowed = [
+            getMayaMainWindow(),
+            self.uim,
+            self.uim.parent(),
+            self.uim.scriptWin,
+            self.uim.infoWin,
+            self.uim.settingsWin,
+            self.uim.newPaneWin,
+        ]
+        if widg in notAllowed or baseName == __title__ or isinstance(widg, Ui_uiMaster):
             # derp
             if not self.uim.initializing:
-                cmds.warning(
-                        "Right, stop that! Stop it. It's silly, very silly.")
+                cmds.warning("Right, stop that! Stop it. It's silly, very silly.")
             return
         # fix name if necessary, add tab
         name = self.fixName(baseName, source)
         self.uim.fixEdgeCases(name, widg, True)
 
-        #widg.show()
+        # widg.show()
         size = widg.size()
         widg.setMinimumSize(50, 50)
         widg.setMaximumSize(524287, 524287)
-        
-        widg.setWindowFlags(QtCore.Qt.BypassGraphicsProxyWidget |
-                        QtCore.Qt.Window)
+
+        widg.setWindowFlags(QtCore.Qt.BypassGraphicsProxyWidget | QtCore.Qt.Window)
         # EMBED PROXY IN uiScene, TO AVOID FATAL ERRORS
         # This way, Maya gets to maintain ownership of its widgets
         # but uiMaster can still do whatever it needs to with them
@@ -1700,18 +1716,26 @@ class UiPane(QtWidgets.QWidget):
         proxy = GraphicsProxy(None, self.uiView)
         proxy.setWidget(widg)
         self.uim.uiScene.addItem(proxy)
-        #self.uim.uiLayout.addItem(proxy)
+        # self.uim.uiLayout.addItem(proxy)
         if not proxy.widget():
             cmds.warning("uiMaster: Problem connecting proxy to widget.")
             return
 
-        self.loadedUIs.append([name, source, size.toTuple(), 
-                    proxy, proxy.widget().focusWidget(), self.position])
+        self.loadedUIs.append(
+            [
+                name,
+                source,
+                size.toTuple(),
+                proxy,
+                proxy.widget().focusWidget(),
+                self.position,
+            ]
+        )
         print("uiMaster: Adding {0}".format(name))
 
         # let UIM keep track of UIs in order added
         self.uim.allUIs.append(self.loadedUIs[-1])
-        
+
         if not self.uiWidget.isVisible():
             self.uiWidget.show()
             self.welcomeScreen.hide()
@@ -1720,14 +1744,13 @@ class UiPane(QtWidgets.QWidget):
         index = self.uiTabBar.addTab(name)
         self.uiTabBar.setCurrentIndex(index)
         self.uiTabBar.currentChanged.emit(index)
-        
+
         # allUIs is updated, check for "special" UIs
         fixFullscreenScript(name, self.uim.allUIs)
 
         # Save loadedUIs to script node in scene
         #
         self.uim.saveState()
-
 
     # Make sure name of pending tab is unique and isn't already loaded
     #
@@ -1737,27 +1760,27 @@ class UiPane(QtWidgets.QWidget):
         name = baseName
         num = 0
         nameList = []
-        
+
         for x in self.loadedUIs:
             nameList.append(x[0])
             if source in x:
                 cmds.warning(
                     "Duplicate copies of the same UI could "
-                    "result in unwanted behavior!")
-    
+                    "result in unwanted behavior!"
+                )
+
         while name in nameList:
-            num+=1
-            name = baseName+" "+str(num)
+            num += 1
+            name = baseName + " " + str(num)
         return name
 
-    
     # Remove a widget from the uiScene and perform all
     # necessary internal cleanup
     #
     def returnWinToMaya(self, proxy, size, name):
         main = getMayaMainWindow()
-        #proxy.show()
-        #proxy.setHotkeysEnabled(True)
+        # proxy.show()
+        # proxy.setHotkeysEnabled(True)
         widg = proxy.widget()
         if widg and widg not in main.children():
             widg.setParent(main)
@@ -1778,14 +1801,13 @@ class UiPane(QtWidgets.QWidget):
                 c.move(pos)
                 if self.uim.settingsWin.disperseCheck.isChecked():
                     c.show()
-                #c.resize(size[0], size[1])
+                # c.resize(size[0], size[1])
                 c.resize(s)
                 break
         self.uim.uiScene.removeItem(proxy)
         proxy.close()
         # allUIs is updated
         fixFullscreenScript(name, self.uim.allUIs)
-
 
     # Receive two type of drag events - suitable files
     # and tabs dragged from other tabbars
@@ -1797,10 +1819,10 @@ class UiPane(QtWidgets.QWidget):
         if tabData:
             self.uiTabBar.dragEnterEvent(event)
             return
-        #self.uiTabBar.dragEnterEvent(event)
-        #if event.isAccepted():
+        # self.uiTabBar.dragEnterEvent(event)
+        # if event.isAccepted():
         #    return
-        #self.uiView.dragEnterEvent(event)
+        # self.uiView.dragEnterEvent(event)
         files = data.urls()
         if files:
             for f in files:
@@ -1809,8 +1831,7 @@ class UiPane(QtWidgets.QWidget):
                     self.fileDrop = True
                     return
 
-    
-    # Move tabs within tabbar - 
+    # Move tabs within tabbar -
     def dragMoveEvent(self, event):
         event.setAccepted(False)
         if self.uiTabBar.dragData:
@@ -1819,7 +1840,6 @@ class UiPane(QtWidgets.QWidget):
         if self.fileDrop:
             event.accept()
 
-    
     def dropEvent(self, event):
         if self.uiTabBar.dragData:
             self.uiTabBar.dropEvent(event)
@@ -1835,7 +1855,6 @@ class UiPane(QtWidgets.QWidget):
             event.accept()
             self.fileDrop = False
 
-    
     def dragLeaveEvent(self, event):
         if self.uiTabBar.dragData:
             self.uiTabBar.dragLeaveEvent(event)
@@ -1852,14 +1871,14 @@ class UiPane(QtWidgets.QWidget):
 
 
 
-8888888888d8b888           888    888                     888888                
-888       Y8P888           888    888                     888888                
-888          888           888    888                     888888                
-8888888   888888 .d88b.    8888888888 8888b. 88888b.  .d88888888 .d88b. 888d888 
-888       888888d8P  Y8b   888    888    "88b888 "88bd88" 888888d8P  Y8b888P"   
-888       88888888888888   888    888.d888888888  888888  88888888888888888     
-888       888888Y8b.       888    888888  888888  888Y88b 888888Y8b.    888     
-888       888888 "Y8888    888    888"Y888888888  888 "Y88888888 "Y8888 888    
+8888888888d8b888           888    888                     888888
+888       Y8P888           888    888                     888888
+888          888           888    888                     888888
+8888888   888888 .d88b.    8888888888 8888b. 88888b.  .d88888888 .d88b. 888d888
+888       888888d8P  Y8b   888    888    "88b888 "88bd88" 888888d8P  Y8b888P"
+888       88888888888888   888    888.d888888888  888888  88888888888888888
+888       888888Y8b.       888    888888  888888  888Y88b 888888Y8b.    888
+888       888888 "Y8888    888    888"Y888888888  888 "Y88888888 "Y8888 888
 
 
 
@@ -1867,9 +1886,9 @@ class UiPane(QtWidgets.QWidget):
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 """
-# Class for handling files, 
+# Class for handling files,
 # whether passed in, user-select or auto-search
-# Attempt to get a widget from ecah file 
+# Attempt to get a widget from ecah file
 # and return a tuple of object, name and source
 #
 class UiFileHandler(QtCore.QObject):
@@ -1897,14 +1916,13 @@ class UiFileHandler(QtCore.QObject):
             baseName = os.path.basename(f).split(".")[0]
             # Make sure user isn't trying to load
             # uiMaster into itself
-            #this = __file__.replace("\\", "/")
-            if baseName == "uiMaster":# or this == f:
-                cmds.warning("Right, stop that! Stop it. "
-                        "It's silly, very silly.")
+            # this = __file__.replace("\\", "/")
+            if baseName == "uiMaster":  # or this == f:
+                cmds.warning("Right, stop that! Stop it. " "It's silly, very silly.")
                 return
             # new is a dict of form new[name] = widg
             new = self.getWidgFromFile(f, baseName, quiet, savedName)
-            
+
             # get f relative to current Maya project directory
             proj = cmds.workspace(q=True, rootDirectory=True)
             try:
@@ -1916,7 +1934,6 @@ class UiFileHandler(QtCore.QObject):
                 w = new[n]
                 uis.append((w, n, s))
         return uis
-
 
     # Auto find files: finds directories associated with each
     # reference in Maya scene, then returns any
@@ -1943,19 +1960,20 @@ class UiFileHandler(QtCore.QObject):
         if not files:
             win = QtWidgets.QMessageBox(self.parent())
             win.setWindowTitle("No UIs found")
-            win.setText("Autosearch did not find any UIs"
-                        "\n     in referenced directories.")
+            win.setText(
+                "Autosearch did not find any UIs" "\n     in referenced directories."
+            )
             win.addButton("Ok", QtWidgets.QMessageBox.AcceptRole)
             win.exec_()
             win.setParent(None)
         return files
 
-
     # Open a file browser for the user to choose a GUI file
     #
     def uiFileBrowser(self):
-        fileWin = QtWidgets.QFileDialog(self.parent(), 
-                    filter="Maya UI Files (*.ui *.py *.mel)")
+        fileWin = QtWidgets.QFileDialog(
+            self.parent(), filter="Maya UI Files (*.ui *.py *.mel)"
+        )
         if fileWin.exec_():
             tarUI = fileWin.selectedFiles()
         else:
@@ -1972,9 +1990,11 @@ class UiFileHandler(QtCore.QObject):
                 win = QtWidgets.QMessageBox(self.parent())
                 win.setWindowTitle("Duplicate file")
                 win.setIcon(QtWidgets.QMessageBox.Warning)
-                win.setText("The selected file has already been loaded "
-                        "into uiMaster!\n\nMultiple copies of the same UI can "
-                        "cause unwanted behavior.")
+                win.setText(
+                    "The selected file has already been loaded "
+                    "into uiMaster!\n\nMultiple copies of the same UI can "
+                    "cause unwanted behavior."
+                )
                 win.addButton("Load anyway", QtWidgets.QMessageBox.AcceptRole)
                 win.addButton("Go to", QtWidgets.QMessageBox.YesRole)
                 win.addButton("Choose another file", QtWidgets.QMessageBox.NoRole)
@@ -1991,12 +2011,11 @@ class UiFileHandler(QtCore.QObject):
                 win.setParent(None)
                 break
         return tarUI
-    
-    
+
     # Given a .ui, .py or .mel file, find any new widgets in them
-    # by QUiLoader, running the file contents, or finding compiled 
+    # by QUiLoader, running the file contents, or finding compiled
     # QT code. Return widgets and their names. However, some files
-    # will need commands to be called. 
+    # will need commands to be called.
     #
     def getWidgFromFile(self, f, name, quiet, savedName):
         new = {}
@@ -2004,7 +2023,7 @@ class UiFileHandler(QtCore.QObject):
             loader = QtUiTools.QUiLoader()
             widg = loader.load(f, self.parent())
             new[widg.windowTitle()] = widg
-        elif ".py" in f:           
+        elif ".py" in f:
             # try RUNNING it straight up BEFORE searching for
             # compiled python "Ui_" classes
             new = self.runFileStraightUp(name, "python", f, savedName)
@@ -2019,15 +2038,16 @@ class UiFileHandler(QtCore.QObject):
             if new == {} and not quiet:
                 self.suggestCode(f, self.parent().scriptWin.melWidg, "")
         else:
-            cmds.error("Unrecognized file type. "
-                    "Please load a Maya-compatible UI file"
-                    "('.ui', '.py' or 'mel').")
-        
+            cmds.error(
+                "Unrecognized file type. "
+                "Please load a Maya-compatible UI file"
+                "('.ui', '.py' or 'mel')."
+            )
+
         if new == "Invalid":
             new = {}
 
         return new
-
 
     # Given a file, either .py or .mel, run it via
     # mel.eval(source f) or exec(import)
@@ -2054,13 +2074,14 @@ class UiFileHandler(QtCore.QObject):
 
             elif lang == "mel":
                 # source runs code inside file, making procs available
-                mel.eval("source \"{0}\"".format(uiName))
+                mel.eval('source "{0}"'.format(uiName))
         except Exception as e:
-            cmds.warning("uiMaster - Error importing {0} UI file. "
-                    "Check file for validity. \nError:\n{1}".format(lang, 
-                                                                    str(e)))
+            cmds.warning(
+                "uiMaster - Error importing {0} UI file. "
+                "Check file for validity. \nError:\n{1}".format(lang, str(e))
+            )
             # return "Invalid" so getWidgFromFile knows
-            return("Invalid")
+            return "Invalid"
 
         newWins, newVis = self.parent().findMayaChildWindows()
         # get the set of windows which are either new OR newly visible
@@ -2072,7 +2093,6 @@ class UiFileHandler(QtCore.QObject):
 
         return new
 
-
     # Find all compiled Qt classes
     # ASK USER ABOUT EACH CLASS,
     # and return instances of each one they 'ok'
@@ -2080,7 +2100,7 @@ class UiFileHandler(QtCore.QObject):
     def getCompiledWidgets(self, f, name, quiet, savedName):
         new = {}
         clsList = []
-        
+
         # At this point, module has been tested and is refreshed
         mod = mainDict[name]
         if not inspect.ismodule(mod):
@@ -2090,28 +2110,30 @@ class UiFileHandler(QtCore.QObject):
         members = inspect.getmembers(mod, inspect.isclass)
         for m in members:
             # directly compiled QT code does NOT inherit QWidgets
-            #if issubclass(m[1], QtWidgets.QWidget):
+            # if issubclass(m[1], QtWidgets.QWidget):
             if m[0].startswith("Ui_"):
                 # accepted as compiled QT
                 clsList.append(m)
-        
+
         acceptAll = False
         i = 0
-        #c[0] is clsName, c[1] is class object
+        # c[0] is clsName, c[1] is class object
         for c in clsList:
-            i+=1
+            i += 1
             clsName = c[0]
             cls = c[1]
-            
+
             # Window to present user with found UIs
             if not acceptAll and not quiet:
                 win = QtWidgets.QMessageBox(self.parent())
                 win.setWindowTitle("Load specified widget?")
                 win.setIcon(QtWidgets.QMessageBox.Question)
-                win.setText("Found {0} class(es) recognized\n"
-                            "as compiled QT widget(s).\n\n"
-                            "Widget {1} of {0}: \"{2}\".\n\n"
-                            "Load?".format(len(clsList), i, clsName))
+                win.setText(
+                    "Found {0} class(es) recognized\n"
+                    "as compiled QT widget(s).\n\n"
+                    'Widget {1} of {0}: "{2}".\n\n'
+                    "Load?".format(len(clsList), i, clsName)
+                )
                 win.addButton("Load", QtWidgets.QMessageBox.AcceptRole)
                 win.addButton("Load all", QtWidgets.QMessageBox.YesRole)
                 win.addButton("Skip", QtWidgets.QMessageBox.NoRole)
@@ -2127,7 +2149,7 @@ class UiFileHandler(QtCore.QObject):
                     win.setParent(None)
                     break
                 win.setParent(None)
-            
+
             try:
                 widg = buildClass(cls)(getMayaMainWindow())
             except Exception as e:
@@ -2143,15 +2165,16 @@ class UiFileHandler(QtCore.QObject):
             win.setParent(None)
         return new
 
-
     # Run when nothing is found in a .py or .mel file
     #
     def suggestCode(self, f, cmdWidg, cmd):
         # need user input
         sWin = self.parent().scriptWin
-        msg = ("No new UI found from running file: \n\n{0}\n\nMaybe a "
-                "MEL or Python command is needed?\n\nEnter any "
-                "additional code in the Script Box.".format(f))
+        msg = (
+            "No new UI found from running file: \n\n{0}\n\nMaybe a "
+            "MEL or Python command is needed?\n\nEnter any "
+            "additional code in the Script Box.".format(f)
+        )
         win = QtWidgets.QMessageBox(self.parent())
         win.setWindowTitle("No UI found")
         win.setIcon(QtWidgets.QMessageBox.Question)
@@ -2176,14 +2199,14 @@ class UiFileHandler(QtCore.QObject):
 
 
 
-8888888888                        888      8888888888d8b888888                           
-888                               888      888       Y8P888888                           
-888                               888      888          888888                           
-8888888   888  888 .d88b. 88888b. 888888   8888888   888888888888 .d88b. 888d888.d8888b  
-888       888  888d8P  Y8b888 "88b888      888       888888888   d8P  Y8b888P"  88K      
-888       Y88  88P88888888888  888888      888       888888888   88888888888    "Y8888b. 
-888        Y8bd8P Y8b.    888  888Y88b.    888       888888Y88b. Y8b.    888         X88 
-8888888888  Y88P   "Y8888 888  888 "Y888   888       888888 "Y888 "Y8888 888     88888P'  
+8888888888                        888      8888888888d8b888888
+888                               888      888       Y8P888888
+888                               888      888          888888
+8888888   888  888 .d88b. 88888b. 888888   8888888   888888888888 .d88b. 888d888.d8888b
+888       888  888d8P  Y8b888 "88b888      888       888888888   d8P  Y8b888P"  88K
+888       Y88  88P88888888888  888888      888       888888888   88888888888    "Y8888b.
+888        Y8bd8P Y8b.    888  888Y88b.    888       888888Y88b. Y8b.    888         X88
+8888888888  Y88P   "Y8888 888  888 "Y888   888       888888 "Y888 "Y8888 888     88888P'
 
 
 
@@ -2203,17 +2226,17 @@ class ChildFocusFilter(QtCore.QObject):
         if t == QtCore.QEvent.WindowActivate:
             # reactivate widget
             self.parent().currProxy().widget().setEnabled(True)
-            #self.parent().currProxy().setHotkeysEnabled(True)
+            # self.parent().currProxy().setHotkeysEnabled(True)
             return True
         elif t == QtCore.QEvent.WindowDeactivate:
-            # active window exists if user has selected a new window - 
+            # active window exists if user has selected a new window -
             # in that case, disable proxy widget
             # active does not exist if the window was just closed -
             # in that case, send focus back to uiView
             act = QtWidgets.QApplication.activeWindow()
             if act:
                 self.parent().currProxy().widget().setEnabled(False)
-                #self.parent().currProxy().setHotkeysEnabled(False)
+                # self.parent().currProxy().setHotkeysEnabled(False)
             else:
                 self.parent().forceRefocus()
             return True
@@ -2275,12 +2298,18 @@ class CmdFilter(QtCore.QObject):
 class HotkeyFilter(QtCore.QObject):
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.KeyPress:
-            hotkeys = {QtCore.Qt.Key_1: 0, QtCore.Qt.Key_2: 1,
-                       QtCore.Qt.Key_3: 2, QtCore.Qt.Key_4: 3,
-                       QtCore.Qt.Key_5: 4, QtCore.Qt.Key_6: 5,
-                       QtCore.Qt.Key_7: 6, QtCore.Qt.Key_8: 7}
+            hotkeys = {
+                QtCore.Qt.Key_1: 0,
+                QtCore.Qt.Key_2: 1,
+                QtCore.Qt.Key_3: 2,
+                QtCore.Qt.Key_4: 3,
+                QtCore.Qt.Key_5: 4,
+                QtCore.Qt.Key_6: 5,
+                QtCore.Qt.Key_7: 6,
+                QtCore.Qt.Key_8: 7,
+            }
             m = QtWidgets.QApplication.mouseButtons()
-            rmb = (m == QtCore.Qt.RightButton)
+            rmb = m == QtCore.Qt.RightButton
             k = event.key()
             if rmb and k in hotkeys.keys():
                 self.installRefocus(obj)
@@ -2304,11 +2333,10 @@ class HotkeyFilter(QtCore.QObject):
         # global else
         return QtCore.QObject.eventFilter(self, obj, event)
 
-
     # A way to refocus on uiMaster after RMB release event gives
     # focus back to obj
     def installRefocus(self, obj):
-        par = self.parent( )
+        par = self.parent()
         pos = QtGui.QCursor.pos()
         # widg is the marking menu if it exists, or widget under mouse
         widg = QtWidgets.QApplication.widgetAt(pos)
@@ -2329,8 +2357,10 @@ class HotkeyFilter(QtCore.QObject):
 #
 class HotkeyRefocusFilter(QtCore.QObject):
     def eventFilter(self, obj, event):
-        if (self.parent().hotkeying 
-                and QtWidgets.QApplication.mouseButtons() != QtCore.Qt.RightButton):
+        if (
+            self.parent().hotkeying
+            and QtWidgets.QApplication.mouseButtons() != QtCore.Qt.RightButton
+        ):
             par = self.parent()
             par.hotkeying = False
             par.activateWindow()
@@ -2341,11 +2371,11 @@ class HotkeyRefocusFilter(QtCore.QObject):
                 focus = par
             focus.setFocus()
             obj.removeEventFilter(self)
-        
+
         return QtCore.QObject.eventFilter(self, obj, event)
 
 
-# Event filter to run behaviors 
+# Event filter to run behaviors
 # upon the dockwidget envelope being closed, resized, or moved
 # Spontaneity helps determine whether resize is saved
 # move all UIs to match position upon dock moving
@@ -2367,7 +2397,8 @@ class CloseResizeFilter(QtCore.QObject):
         elif t == QtCore.QEvent.Move:
             obj.widget().paneMoveResize()
         return QtCore.QObject.eventFilter(self, obj, event)
-  
+
+
 """
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
@@ -2375,14 +2406,14 @@ class CloseResizeFilter(QtCore.QObject):
 
 
 
-888b     d888        d8b            .d8888b. 888                         
-8888b   d8888        Y8P           d88P  Y88b888                         
-88888b.d88888                      888    888888                         
-888Y88888P888 8888b. 88888888b.    888       888 8888b. .d8888b .d8888b  
-888 Y888P 888    "88b888888 "88b   888       888    "88b88K     88K      
-888  Y8P  888.d888888888888  888   888    888888.d888888"Y8888b."Y8888b. 
-888   "   888888  888888888  888   Y88b  d88P888888  888     X88     X88 
-888       888"Y888888888888  888    "Y8888P" 888"Y888888 88888P' 88888P' 
+888b     d888        d8b            .d8888b. 888
+8888b   d8888        Y8P           d88P  Y88b888
+88888b.d88888                      888    888888
+888Y88888P888 8888b. 88888888b.    888       888 8888b. .d8888b .d8888b
+888 Y888P 888    "88b888888 "88b   888       888    "88b88K     88K
+888  Y8P  888.d888888888888  888   888    888888.d888888"Y8888b."Y8888b.
+888   "   888888  888888888  888   Y88b  d88P888888  888     X88     X88
+888       888"Y888888888888  888    "Y8888P" 888"Y888888 88888P' 88888P'
 
 
 
@@ -2392,16 +2423,19 @@ class CloseResizeFilter(QtCore.QObject):
 """
 # QT -> PY COMPILED CODE:
 # uiMaster, the filling for the mainWindow to be factory-made later on
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # MAIN CLASS
 # MAIN CLASS
 # MAIN CLASS
 
+
 class Ui_uiMaster(object):
-    def setupUi(self, uiMaster):    
+    def setupUi(self, uiMaster):
         uiMaster.setObjectName("uiMaster")
         uiMaster.resize(300, 485)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(uiMaster.sizePolicy().hasHeightForWidth())
@@ -2409,10 +2443,14 @@ class Ui_uiMaster(object):
         uiMaster.setAcceptDrops(True)
         self.setWindowFlags(QtCore.Qt.Widget)
         self.centralwidget = QtWidgets.QWidget(uiMaster)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.centralwidget.sizePolicy().hasHeightForWidth())
+        sizePolicy.setHeightForWidth(
+            self.centralwidget.sizePolicy().hasHeightForWidth()
+        )
         self.centralwidget.setSizePolicy(sizePolicy)
         self.centralwidget.setAcceptDrops(True)
         self.centralwidget.setStyleSheet("")
@@ -2422,24 +2460,28 @@ class Ui_uiMaster(object):
         self.verticalLayout_4.setSpacing(0)
         self.verticalLayout_4.setObjectName("verticalLayout_4")
 
-        #self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
-        #self.scrollArea.setWidgetResizable(True)
-        #self.scrollArea.setContentsMargins(0, 0, 0, 0)
-        #self.verticalLayout_4.addWidget(self.scrollArea)
+        # self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
+        # self.scrollArea.setWidgetResizable(True)
+        # self.scrollArea.setContentsMargins(0, 0, 0, 0)
+        # self.verticalLayout_4.addWidget(self.scrollArea)
 
         self.mainSplitter = QtWidgets.QSplitter(self.centralwidget)
         self.mainSplitter.setOrientation(QtCore.Qt.Vertical)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored
+        )
         self.mainSplitter.setSizePolicy(sizePolicy)
         self.verticalLayout_4.addWidget(self.mainSplitter)
         self.mainSplitter.splitterMoved.connect(self.paneMoveResize)
-        #colors
+        # colors
         bg = self.palette().color(QtGui.QPalette.Base).name()
         hover = self.palette().color(QtGui.QPalette.WindowText).name()
-        ss = ("QSplitter::handle{{background: {0};}} "
-            "QSplitter::handle:hover{{background: {1};}}".format(bg, hover))
+        ss = (
+            "QSplitter::handle{{background: {0};}} "
+            "QSplitter::handle:hover{{background: {1};}}".format(bg, hover)
+        )
         self.mainSplitter.setStyleSheet(ss)
-        #self.scrollArea.setWidget(self.mainSplitter)
+        # self.scrollArea.setWidget(self.mainSplitter)
 
         self.uiScene = QtWidgets.QGraphicsScene(self.mainSplitter)
 
@@ -2465,14 +2507,16 @@ class Ui_uiMaster(object):
         self.welcomeScreen.setMouseTracking(True)
         self.welcomeScreen.setTextFormat(QtCore.Qt.AutoText)
         self.welcomeScreen.setScaledContents(False)
-        self.welcomeScreen.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignTop)
+        self.welcomeScreen.setAlignment(
+            QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop
+        )
         self.welcomeScreen.setObjectName("welcomeScreen")
 
         # uiView will be replaced by multiple instances of UiPane,
         # which each is made up of a TabBar and a WidgProxyView
         #
         uiMaster.setCentralWidget(self.centralwidget)
-        
+
         self.toolBar = QtWidgets.QToolBar(uiMaster)
         self.toolBar.setStyleSheet("QToolButton { width: 20px; height: 20px; }")
         self.toolBar.layout().setContentsMargins(1, 1, 1, 1)
@@ -2513,7 +2557,9 @@ class Ui_uiMaster(object):
         self.toolBar.addAction(self.actionDock_Native_UIs)
         self.toolBar.addAction(self.actionScript_Window)
         self.separatorWidg = QtWidgets.QWidget(uiMaster)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+        )
         self.separatorWidg.setSizePolicy(sizePolicy)
         self.toolBar.addWidget(self.separatorWidg)
         self.toolBar.addAction(self.actionAddPanes)
@@ -2528,14 +2574,12 @@ class Ui_uiMaster(object):
         # shove global welcome screen in place of usual one
         self.defaultPane.welcomeScreen.setParent(None)
         self.defaultPane.welcomeScreen = self.welcomeScreen
-        self.defaultPane.verticalLayout.addWidget(
-                    self.defaultPane.welcomeScreen)
-
+        self.defaultPane.verticalLayout.addWidget(self.defaultPane.welcomeScreen)
 
         # custom
         #
         self.initializing = True
-        #self.loadedUIs = []
+        # self.loadedUIs = []
         # should be "uiMasterDockWidget"
         self.mayaName = omui.MQtUtil.fullName(getCppPointer(self.parent()))
         self.tabsNode = "uiMasterLoadedUIs"
@@ -2561,7 +2605,7 @@ class Ui_uiMaster(object):
         InfoWin = buildClass(Ui_infoWin)
         self.infoWin = InfoWin(self)
         self.uiFileHandler = UiFileHandler(self)
-        
+
         # button icons - first one is overlaid using QPainter
         # on a transparent background
         #
@@ -2575,7 +2619,7 @@ class Ui_uiMaster(object):
         painter.end()
         self.actionAutoLoad_UIs.setIcon(autoIcon)
         self.actionManually_Load_UI.setIcon(QtGui.QPixmap(":/fileOpen"))
-        
+
         autoIcon2 = QtGui.QPixmap(32, 32)
         autoIcon2.fill(QtCore.Qt.transparent)
         painter = QtGui.QPainter(autoIcon2)
@@ -2584,24 +2628,27 @@ class Ui_uiMaster(object):
         painter.drawPixmap(8, 4, magnetPix)
         painter.end()
         self.actionDock_Native_UIs.setIcon(autoIcon2)
-        
+
         self.actionScript_Window.setIcon(QtGui.QPixmap(":/cmdWndIcon"))
         self.actionAddPanes.setIcon(QtGui.QPixmap(":/defaultFourQuadLayout"))
         self.actionSettings.setIcon(QtGui.QPixmap(":/toolSettings"))
         self.actionInfo.setIcon(QtGui.QPixmap(":/info"))
-        
+
         # connect actions to methods
         self.actionAutoLoad_UIs.triggered.connect(partial(self.addTab, "auto"))
         self.actionManually_Load_UI.triggered.connect(partial(self.addTab, "manual"))
         self.actionDock_Native_UIs.triggered.connect(self.hookWins)
-        self.actionScript_Window.triggered.connect(partial(
-                    self.openSecondaryWin, self.scriptWin, self.actionScript_Window))
+        self.actionScript_Window.triggered.connect(
+            partial(self.openSecondaryWin, self.scriptWin, self.actionScript_Window)
+        )
         self.actionAddPanes.triggered.connect(self.newPaneWin.redraw)
-        self.actionSettings.triggered.connect(partial(
-                    self.openSecondaryWin, self.settingsWin, self.actionSettings))
-        self.actionInfo.triggered.connect(partial(
-                    self.openSecondaryWin, self.infoWin, self.actionInfo))
-        
+        self.actionSettings.triggered.connect(
+            partial(self.openSecondaryWin, self.settingsWin, self.actionSettings)
+        )
+        self.actionInfo.triggered.connect(
+            partial(self.openSecondaryWin, self.infoWin, self.actionInfo)
+        )
+
         self.toolBar.topLevelChanged.connect(self.toolBarDocked)
 
         if self.floating:
@@ -2615,33 +2662,81 @@ class Ui_uiMaster(object):
         QtCore.QMetaObject.connectSlotsByName(uiMaster)
 
     def retranslateUi(self, uiMaster):
-        #uiMaster.setWindowTitle(QtWidgets.QApplication.translate("uiMaster", __title__, None, -1))
-        self.welcomeScreen.setText(QtWidgets.QApplication.translate("uiMaster", 
-                "<html><head/><body><p align=\"center\"><span style=\" font-size:16pt; color:#b5b5b5;\">"
+        # uiMaster.setWindowTitle(QtWidgets.QApplication.translate("uiMaster", __title__, None, -1))
+        self.welcomeScreen.setText(
+            QtWidgets.QApplication.translate(
+                "uiMaster",
+                '<html><head/><body><p align="center"><span style=" font-size:16pt; color:#b5b5b5;">'
                 "<br/>Welcome to Maya uiMaster."
                 "<br/><br/><br/>No UIs are loaded right now."
                 "<br/><br/>Use the Action Bar to load UIs:"
                 "<br/><t/>&bull; From files"
                 "<br/><t/>&bull; From command line"
                 "<br/><t/>&bull; From existing windows"
+                # "<br/>from files, command-line or existing windows."
+                "</p></body></html>",
+                None,
+                -1,
+            )
+        )
+        self.toolBar.setWindowTitle(
+            QtWidgets.QApplication.translate("uiMaster", "toolBar", None, -1)
+        )
+        self.actionAutoLoad_UIs.setToolTip(
+            QtWidgets.QApplication.translate(
+                "uiMaster",
+                'Search relevant directories for .ui files and files with "ui"\n'
+                "in the name, then attempt to load them into uiMaster",
+                None,
+                -1,
+            )
+        )
+        self.actionManually_Load_UI.setToolTip(
+            QtWidgets.QApplication.translate(
+                "uiMaster",
+                "Load UI from file (.ui, .py, .mel).\n\nAlso adds the directory to MAYA_SCRIPT_PATH and Python module path.",
+                None,
+                -1,
+            )
+        )
+        self.actionDock_Native_UIs.setToolTip(
+            QtWidgets.QApplication.translate(
+                "uiMaster",
+                "Enter window magnet mode, where you click on\n"
+                "other maya windows to pull them into uiMaster.\nPress any key to exit this mode.\n\nCustom UIs will need to be re-sourced from\nscript or file upon reloading scene",
+                None,
+                -1,
+            )
+        )
+        self.actionScript_Window.setToolTip(
+            QtWidgets.QApplication.translate(
+                "uiMaster",
+                "Open the nested script box. Any floating UIs created\n"
+                "with this tool are automatically pulled into uiMaster",
+                None,
+                -1,
+            )
+        )
+        self.actionAddPanes.setText(
+            QtWidgets.QApplication.translate(
+                "uiMaster", "Create new rows and panes", None, -1
+            )
+        )
+        self.actionClose.setText(
+            QtWidgets.QApplication.translate("uiMaster", "Close", None, -1)
+        )
+        self.actionSettings.setToolTip(
+            QtWidgets.QApplication.translate(
+                "uiMaster", "Open uiMaster settings", None, -1
+            )
+        )
+        self.actionInfo.setToolTip(
+            QtWidgets.QApplication.translate(
+                "uiMaster", "uiMaster software information", None, -1
+            )
+        )
 
-                #"<br/>from files, command-line or existing windows."
-                "</p></body></html>", None, -1))
-        self.toolBar.setWindowTitle(QtWidgets.QApplication.translate("uiMaster", "toolBar", None, -1))
-        self.actionAutoLoad_UIs.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Search relevant directories for .ui files and files with \"ui\"\n"
-"in the name, then attempt to load them into uiMaster", None, -1))
-        self.actionManually_Load_UI.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Load UI from file (.ui, .py, .mel).\n\nAlso adds the directory to MAYA_SCRIPT_PATH and Python module path.", None, -1))
-        self.actionDock_Native_UIs.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Enter window magnet mode, where you click on\n"
-"other maya windows to pull them into uiMaster.\nPress any key to exit this mode.\n\nCustom UIs will need to be re-sourced from\nscript or file upon reloading scene", None, -1))
-        self.actionScript_Window.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Open the nested script box. Any floating UIs created\n"
-"with this tool are automatically pulled into uiMaster", None, -1))
-        self.actionAddPanes.setText(QtWidgets.QApplication.translate("uiMaster", "Create new rows and panes", None, -1))
-        self.actionClose.setText(QtWidgets.QApplication.translate("uiMaster", "Close", None, -1))
-        self.actionSettings.setToolTip(QtWidgets.QApplication.translate("uiMaster", "Open uiMaster settings", None, -1))
-        self.actionInfo.setToolTip(QtWidgets.QApplication.translate("uiMaster", "uiMaster software information", None, -1))
-
-
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     # END COMPILED CODE:
     # General methods for main class
     #
@@ -2653,8 +2748,7 @@ class Ui_uiMaster(object):
         wins = set()
         vis = set()
         for c in getMayaMainWindow().children():
-            isTopLevel = (c.isWidgetType() and c.isWindow() or 
-                                            c.inherits("QDockWidget"))
+            isTopLevel = c.isWidgetType() and c.isWindow() or c.inherits("QDockWidget")
             if not isTopLevel:
                 continue
             # only relevant windows/dockwidgets remain
@@ -2663,7 +2757,6 @@ class Ui_uiMaster(object):
                 vis.add(c)
 
         return wins, vis
-
 
     # weird-ass edge cases for the Tool Settings window,
     # presumably because it's ancient and losing its marbles
@@ -2685,7 +2778,6 @@ class Ui_uiMaster(object):
             else:
                 widg.setAllowedAreas(3)
 
-
     # Easier way to handle resizing - particularly when docked
     def sizeHint(self):
         if self.mode == "panes":
@@ -2698,7 +2790,6 @@ class Ui_uiMaster(object):
             s = self.defaultPane.loadedUIs[i][2]
             return self.defaultPane.padWidgSize(s)
 
-
     # Response to visibility changing, for when it is in
     # a tabbed dock layout - must force the resize
     def visChanged(self, vis):
@@ -2708,9 +2799,8 @@ class Ui_uiMaster(object):
             QtCore.QTimer.singleShot(900, self.parent().updateGeometry)
             QtCore.QTimer.singleShot(1800, self.parent().updateGeometry)
 
-    
     # Called by parent dockwidget's resize event
-    # 
+    #
     def dockResized(self, spon):
         # this value is returned by sizeHint to help docked mode work right
         if (self.floating and spon) or not self.floating:
@@ -2718,7 +2808,6 @@ class Ui_uiMaster(object):
             # but not spontaneous - such as the auto resize
             # when control is docked
             self.saveSize()
-
 
     # Actually set the loadedUIs size value
     #
@@ -2737,8 +2826,7 @@ class Ui_uiMaster(object):
                     # save new width only
                     if area in (1, 2):
                         size = (p.uiView.width(), p.loadedUIs[index][2][1])
-                        pms = QtCore.QSize(par.width(), 
-                                            self.paneModeSize.height())
+                        pms = QtCore.QSize(par.width(), self.paneModeSize.height())
                     elif area in (4, 8):
                         pass
                 try:
@@ -2752,7 +2840,6 @@ class Ui_uiMaster(object):
         if self.mode == "panes":
             self.paneModeSize = pms
         self.saveState()
-
 
     # Called by dock move events and splitterMoved signal
     # EITHER - saves sizes OR explicitly calls pane.matchPos()
@@ -2769,7 +2856,6 @@ class Ui_uiMaster(object):
                     if proxy and proxy.widget():
                         p.uiView.matchPos(proxy)
 
-    
     # Parent method for tab adding
     #
     def addTab(self, method, files=[], quiet=False, savedName=None):
@@ -2782,7 +2868,6 @@ class Ui_uiMaster(object):
             pane = self.findBestPane()
             pane.widgToTab(w, n, s)
 
-    
     # Called whenever window is undocked,
     # this fixes the style
     #
@@ -2798,11 +2883,11 @@ class Ui_uiMaster(object):
             area = getMayaMainWindow().dockWidgetArea(self.parent())
             self.settingsWin.saveSettings("dockArea", int(area))
             self.settingsWin.saveSettings("floating", False)
-        
+
         # emit tab change to force resize
         self.defaultPane.uiTabBar.currentChanged.emit(
-                            self.defaultPane.uiTabBar.currentIndex())
-
+            self.defaultPane.uiTabBar.currentIndex()
+        )
 
     # Change layout of splitters from vertical/horizontal
     #
@@ -2817,9 +2902,8 @@ class Ui_uiMaster(object):
             for r in self.rows:
                 r.setOrientation(QtCore.Qt.Vertical)
             self.layoutMode = "columns"
-        #self.saveSize()
+        # self.saveSize()
         self.settingsWin.saveSettings("rowMode", state)
-
 
     # toolBar is docked - save location
     #
@@ -2827,7 +2911,6 @@ class Ui_uiMaster(object):
         if not floating:
             area = self.toolBarArea(self.toolBar)
             self.settingsWin.saveSettings("toolBarArea", area)
-
 
     # Enter window-hook mode, activated by user action
     # Change cursor and install event filter.
@@ -2847,7 +2930,6 @@ class Ui_uiMaster(object):
             self.parent().activateWindow()
             self.parent().setFocus()
 
-    
     # Undo window-hook mode
     #
     def unhookWins(self):
@@ -2858,10 +2940,9 @@ class Ui_uiMaster(object):
         self.mainSplitter.setEnabled(True)
         self.mainSplitter.setFocus()
 
-
     """
     # Reimplementation to create "smart-focus" feature,
-    # Smart focus resonds to mouse events, 
+    # Smart focus resonds to mouse events,
     # focusing or unfocusing uiMaster and the current UI
     #
     def enterEvent(self, event):
@@ -2871,13 +2952,13 @@ class Ui_uiMaster(object):
                     and not self.infoWin.isActiveWindow()):
             self.activateWindow()
             self.uiView.setFocus()
-    
-    
+
+
     # "Smart-focus": Leave disables current UI, sets new focus
     #
     def leaveEvent(self, event):
         index = self.uiTabBar.currentIndex()
-        if (index != -1 and self.hook == 0 
+        if (index != -1 and self.hook == 0
                     and self.settingsWin.focusCheck.isChecked()
                     and not self.scriptWin.isActiveWindow()
                     and not self.settingsWin.isActiveWindow()
@@ -2898,7 +2979,7 @@ class Ui_uiMaster(object):
             # avoid if active window is a child of proxy
             if active in proxy.widget().children():
                 return
-            
+
             #main = getMayaMainWindow()
             #panel = main.centralWidget().focusWidget()
             #main.activateWindow()
@@ -2906,11 +2987,10 @@ class Ui_uiMaster(object):
             target.setFocus()
     """
 
-    
     # The function to make self.scriptWin/self.settings/self.info show
     #
     def openSecondaryWin(self, win, button):
-        # move scriptWin to under action button - 
+        # move scriptWin to under action button -
         # or above if it's docked on bottom
         rect = self.toolBar.actionGeometry(button)
         bottom = QtCore.Qt.ToolBarArea.BottomToolBarArea
@@ -2932,8 +3012,7 @@ class Ui_uiMaster(object):
         if win.y() + win.height() > edge:
             y = edge - win.height()
             win.move(win.x(), y)
-    
-    
+
     # release all widgets back to maya
     # WITHOUT CALLING saveState() or altering loadedUIs
     def removeAllUIs(self):
@@ -2943,13 +3022,12 @@ class Ui_uiMaster(object):
                 p.uiTabBar.currentChanged.disconnect(p.changeTab)
                 for l in p.loadedUIs:
                     # to ensure name is correct
-                    #w = l[3].widget()
-                    #if w: print(w)
-                    #else: print("NOTHING")
+                    # w = l[3].widget()
+                    # if w: print(w)
+                    # else: print("NOTHING")
                     l[0] = l[3].widget().windowTitle()
                     self.allUIs.remove(l)
                     p.returnWinToMaya(l[3], l[2], l[0])
-
 
     # redefine close - possible use to save session
     # for restoration later??
@@ -2962,7 +3040,7 @@ class Ui_uiMaster(object):
             cmds.warning("Right, stop that! Stop it. It's silly, very silly.")
             event.ignore()
             return
-        
+
         self.removeAllUIs()
 
         # Get rid of self.openNode (the one which
@@ -2987,20 +3065,20 @@ class Ui_uiMaster(object):
         main.removeDockWidget(self.parent())
         self.parent().close()
         cmds.deleteUI(self.mayaName)
-        #event.accept()
-    
+        # event.accept()
+
     """
     #----------------------------------------------------------------------
 
 
-    88888888888     888                                     888   8888888b.                                  
-        888         888                                     888   888   Y88b                                 
-        888         888                                     888   888    888                                 
-        888  8888b. 88888b. .d8888b     8888b. 88888b.  .d88888   888   d88P 8888b. 88888b.  .d88b. .d8888b  
-        888     "88b888 "88b88K            "88b888 "88bd88" 888   8888888P"     "88b888 "88bd8P  Y8b88K      
-        888 .d888888888  888"Y8888b.   .d888888888  888888  888   888       .d888888888  88888888888"Y8888b. 
-        888 888  888888 d88P     X88   888  888888  888Y88b 888   888       888  888888  888Y8b.         X88 
-        888 "Y88888888888P"  88888P'   "Y888888888  888 "Y88888   888       "Y888888888  888 "Y8888  88888P' 
+    88888888888     888                                     888   8888888b.
+        888         888                                     888   888   Y88b
+        888         888                                     888   888    888
+        888  8888b. 88888b. .d8888b     8888b. 88888b.  .d88888   888   d88P 8888b. 88888b.  .d88b. .d8888b
+        888     "88b888 "88b88K            "88b888 "88bd88" 888   8888888P"     "88b888 "88bd8P  Y8b88K
+        888 .d888888888  888"Y8888b.   .d888888888  888888  888   888       .d888888888  88888888888"Y8888b.
+        888 888  888888 d88P     X88   888  888888  888Y88b 888   888       888  888888  888Y8b.         X88
+        888 "Y88888888888P"  88888P'   "Y888888888  888 "Y88888   888       "Y888888888  888 "Y8888  88888P'
 
 
     #----------------------------------------------------------------------
@@ -3032,11 +3110,10 @@ class Ui_uiMaster(object):
             self.floating = old
         # make sure new setting is saved
         self.settingsWin.saveSettings("tabMode", state)
-    
 
     # switch to pane mode if it has been turned ON
     # examine each loadedUIs entry and
-    # if position is NOT (0, 0), 
+    # if position is NOT (0, 0),
     # move tab to correct pane, creating new ones as needed
     #
     def setPaneMode(self, state):
@@ -3057,17 +3134,17 @@ class Ui_uiMaster(object):
                 # get new pane sizes based on averaging sizes
                 vPos = pos[0]
                 paneH = w[2][hGetter]
-                if heights.has_key(vPos):
+                if vPos in heights:
                     # height and divisor for averaging
                     h = heights[vPos][0] + paneH
                     n = heights[vPos][1] + 1
                     heights[vPos] = (h, n)
                 else:
                     heights[vPos] = (paneH, 1)
-                
+
                 # now widths - almost guaranteed to be a bigger dict
                 paneW = w[2][wGetter]
-                if widths.has_key(pos):
+                if pos in widths:
                     l = widths[pos][0] + paneW
                     n = widths[pos][1] + 1
                     widths[pos] = (l, n)
@@ -3076,8 +3153,9 @@ class Ui_uiMaster(object):
 
                 i = self.defaultPane.loadedUIs.index(w)
                 newPane = self.getPaneAtPosition(pos)
-                assert newPane.position == pos, \
-                        "New pane position does not match saved position!"
+                assert (
+                    newPane.position == pos
+                ), "New pane position does not match saved position!"
                 self.moveTabToNewPane(i, self.defaultPane, newPane)
 
             self.parent().resize(self.paneModeSize)
@@ -3085,11 +3163,11 @@ class Ui_uiMaster(object):
             # tab sizes - splitter automatically figures out conflicts
 
             v = []
-            for i in xrange(len(heights)):
+            for i in range(len(heights)):
                 r = self.rows[i]
                 v.append(heights[i][0] / heights[i][1])
                 rowWidths = []
-                for n in xrange(r.count()):
+                for n in range(r.count()):
                     val = widths[i, n]
                     avg = val[0] / val[1]
                     rowWidths.append(avg)
@@ -3100,7 +3178,6 @@ class Ui_uiMaster(object):
         self.settingsWin.paneLayout.setEnabled(state)
         self.actionAddPanes.setEnabled(state)
         self.settingsWin.saveSettings("paneMode", state)
-
 
     # Take a tuple representing position, and make panes until
     # the specified one can be returned
@@ -3116,11 +3193,9 @@ class Ui_uiMaster(object):
             # must set newPane to the newly created 0 pane
             newPane = newRow.widget(0)
         while col > (len(self.panes[row]) - 1):
-            newPane = self.addNewPaneToRow(
-                                self.mainSplitter.widget(row))
+            newPane = self.addNewPaneToRow(self.mainSplitter.widget(row))
         newPane = self.panes[row][col]
         return newPane
-
 
     # Move a tab from one UiPane to another
     # source and target are both UiPane objects
@@ -3157,7 +3232,6 @@ class Ui_uiMaster(object):
         target.uiTabBar.currentChanged.emit(i)
         return i
 
-
     # Add new widget to vertical splitter (global)
     #
     def addNewRow(self):
@@ -3181,7 +3255,6 @@ class Ui_uiMaster(object):
         newRow.splitterMoved.connect(self.paneMoveResize)
         return newRow
 
-
     # Add new pane to a particular row (local)
     #
     def addNewPaneToRow(self, row):
@@ -3190,7 +3263,7 @@ class Ui_uiMaster(object):
         newPane = UiPane(self, vIndex, hIndex, self)
         # other panes... SHOULD scale automatically
         widths = row.sizes()
-        newWidths =  []
+        newWidths = []
         for w in widths:
             newWidths.append(w * hIndex / (hIndex + 1))
         newWidths.append(row.width() / (hIndex + 1))
@@ -3198,7 +3271,6 @@ class Ui_uiMaster(object):
         self.panes[vIndex].append(newPane)
         row.setSizes(newWidths)
         return newPane
-
 
     # Analyze the current pane layout to determine
     # where a new pane should be added.
@@ -3212,9 +3284,9 @@ class Ui_uiMaster(object):
         # First: gather intel. Find out:
         # If there are any empty panes;
         # Minimum and maximum panes per row
-        numRows = len(self.panes)
-        #maxPanes = self.defaultRow.count()
-        #maxRow = self.defaultRow
+        # numRows = len(self.panes)
+        # maxPanes = self.defaultRow.count()
+        # maxRow = self.defaultRow
         minPanes = self.defaultRow.count()
         minRow = self.defaultRow
         for i, r in enumerate(self.panes):
@@ -3223,22 +3295,21 @@ class Ui_uiMaster(object):
                     # 1) Empty pane = ideal. just return it and be done.
                     return p
             if len(r) < minPanes:
-                minPanes= len(r)
+                minPanes = len(r)
                 minRow = self.mainSplitter.widget(i)
-        # 2) next choice is minRow - IF the number of rows is greater 
+        # 2) next choice is minRow - IF the number of rows is greater
         # or equal to # of panes in any particular row
         if len(self.panes) >= minPanes:
             return self.addNewPaneToRow(minRow)
-        #if maxPanes > minPanes:
+        # if maxPanes > minPanes:
         #    return self.addNewPaneToRow(minRow)
         # 3) last choice is to just add a new row
         newRow = self.addNewRow()
         return newRow.widget(0)
 
-
     # Delete rows/columns? Not automatic.
     # Perhaps a close button on the empty default screen?
-    # 
+    #
     def deletePane(self, pane):
         if pane is self.defaultPane:
             return
@@ -3248,7 +3319,7 @@ class Ui_uiMaster(object):
         hIndex = pos[1]
         self.panes[vIndex].pop(hIndex)
         pane.setParent(None)
-        del(pane)
+        del pane
         count = row.count()
         # Position attribute needs to be updated when "middle"
         # panes are removed, as well as loadedUIs pos
@@ -3264,7 +3335,7 @@ class Ui_uiMaster(object):
             self.panes.pop(vIndex)
             self.newPaneWin.deleteButton(row)
             row.setParent(None)
-            del(row)
+            del row
             # for each row after fix its "position" attribute
             for i in range(vIndex, self.mainSplitter.count()):
                 for p in self.panes[i]:
@@ -3276,19 +3347,19 @@ class Ui_uiMaster(object):
     #----------------------------------------------------------------------
 
 
-    8888888b.                        d8b        888                                    
-    888   Y88b                       Y8P        888                                    
-    888    888                                  888                                    
-    888   d88P .d88b. 888d888.d8888b 888.d8888b 888888 .d88b. 88888b.  .d8888b .d88b.  
-    8888888P" d8P  Y8b888P"  88K     88888K     888   d8P  Y8b888 "88bd88P"   d8P  Y8b 
-    888       88888888888    "Y8888b.888"Y8888b.888   88888888888  888888     88888888 
-    888       Y8b.    888         X88888     X88Y88b. Y8b.    888  888Y88b.   Y8b.     
-    888        "Y8888 888     88888P'888 88888P' "Y888 "Y8888 888  888 "Y8888P "Y8888  
+    8888888b.                        d8b        888
+    888   Y88b                       Y8P        888
+    888    888                                  888
+    888   d88P .d88b. 888d888.d8888b 888.d8888b 888888 .d88b. 88888b.  .d8888b .d88b.
+    8888888P" d8P  Y8b888P"  88K     88888K     888   d8P  Y8b888 "88bd88P"   d8P  Y8b
+    888       88888888888    "Y8888b.888"Y8888b.888   88888888888  888888     88888888
+    888       Y8b.    888         X88888     X88Y88b. Y8b.    888  888Y88b.   Y8b.
+    888        "Y8888 888     88888P'888 88888P' "Y888 "Y8888 888  888 "Y8888P "Y8888
 
 
     #----------------------------------------------------------------------
     """
-    
+
     # Method for saving current loadedUIs to node in scene
     # For "internal" type sources, widget is flattened because
     # pickling QWidgets isn't supported.
@@ -3313,37 +3384,35 @@ class Ui_uiMaster(object):
             s = self.mainSplitter.widget(i).sizes()
             hSizes.append(s)
         paneSizes = [self.paneModeSize.toTuple(), vSizes, hSizes]
-        
+
         # SUSPEND MAYA UNDO QUEUE - to avoid flooding it,
         # And avoid user conflict.
         cmds.undoInfo(stateWithoutFlush=False)
-        
+
         # Create both save state nodes if they don't exist yet
         #
         if not cmds.objExists(self.openNode):
             # if it's loaded, start it up
             # when maya is starting, leave it to userSetup.mel
-            cmd = "if (`pluginInfo -q -l \"uiMaster\"`) {uiMaster -a;}"
+            cmd = 'if (`pluginInfo -q -l "uiMaster"`) {uiMaster -a;}'
             # cmd also needs to check for namespace...
             # which, more and more, is seeming impossible
 
-            #cmd = ("import uiMasterBeta; uiMasterBeta.makeUiMaster()")
+            # cmd = ("import uiMasterBeta; uiMasterBeta.makeUiMaster()")
             cmds.scriptNode(name=self.openNode, st=2, bs=cmd, stp="mel")
         if not cmds.objExists(self.tabsNode):
             cmds.scriptNode(name=self.tabsNode, st=0, stp="python")
 
-        cmds.scriptNode(self.tabsNode, edit=True, 
-                                            bs=str([saveList, paneSizes]))
-        
+        cmds.scriptNode(self.tabsNode, edit=True, bs=str([saveList, paneSizes]))
+
         # Restore undo queue
         cmds.undoInfo(stateWithoutFlush=True)
-    
-    
+
     # called when uiMaster is auto-opened by a new scene -
-    # 
+    #
     def additiveRestore(self):
         try:
-            data = eval(cmds.getAttr(self.tabsNode+".before"))
+            data = eval(cmds.getAttr(self.tabsNode + ".before"))
             savedNames = [n[0] for n in data[0]]
             currNames = [n[0] for n in self.allUIs]
         except:
@@ -3354,8 +3423,7 @@ class Ui_uiMaster(object):
             win = QtWidgets.QMessageBox(self)
             win.setWindowTitle("New UIs found")
             win.setIcon(QtWidgets.QMessageBox.Question)
-            win.setText("New scene has its own uiMaster tabs.\n\n"
-                        "What's the plan?\n")
+            win.setText("New scene has its own uiMaster tabs.\n\n" "What's the plan?\n")
             win.addButton("Add to existing", QtWidgets.QMessageBox.AcceptRole)
             win.addButton("Replace existing", QtWidgets.QMessageBox.YesRole)
             win.addButton("Ignore", QtWidgets.QMessageBox.NoRole)
@@ -3378,7 +3446,6 @@ class Ui_uiMaster(object):
                 pass
             win.setParent(None)
 
-
     # Run only once, during initialization
     # Find old uiMasterLoadedUIs node in maya scene
     # the node's "before" attribute is the old loadedUIs list
@@ -3386,10 +3453,10 @@ class Ui_uiMaster(object):
     def restoreSavedState(self, data=None, additive=False):
         # retrieve the list which is saved with the scene
         if not data:
-            data = eval(cmds.getAttr(self.tabsNode+".before"))
+            data = eval(cmds.getAttr(self.tabsNode + ".before"))
 
         failedToLoad = self.addSavedUIs(data[0])
-        
+
         if not additive:
             self.restorePaneSizes(data[1])
 
@@ -3400,7 +3467,6 @@ class Ui_uiMaster(object):
         #
         if failedToLoad:
             self.skippedUIs(failedToLoad)
-    
 
     # Now, go through each source in the list
     # "internal", "file", "mel", and "python"
@@ -3423,7 +3489,7 @@ class Ui_uiMaster(object):
             # This is a cautious check, which IGNORES uis which
             # exist but are not visible. It is assumed that they may
             # have random init behavior hidden in the cmd
-            # (looking at you, charcoal). Besides, if it's hidden, 
+            # (looking at you, charcoal). Besides, if it's hidden,
             # duplicates are irrelevant.
             result = self.loadInternalWidg(name, source, pane, False)
 
@@ -3435,7 +3501,7 @@ class Ui_uiMaster(object):
             # and DO NOT need to skip anything this time
             if sIndex == len(self.allUIs):
                 result = self.loadInternalWidg(name, source, pane)
-            
+
             # Still nothing? Add to failedToLoad list
             if sIndex == len(self.allUIs):
                 failedToLoad.append(name)
@@ -3446,7 +3512,6 @@ class Ui_uiMaster(object):
 
         return failedToLoad
 
-    
     # Fix size for pane mode - both size of whole
     # dockWidget parent AND sizes of each pane within uiMaster
     #
@@ -3469,7 +3534,6 @@ class Ui_uiMaster(object):
             if row:
                 row.setSizes(s)
 
-
     # Assign saved size to loadedUIs
     #
     def fixSize(self, i, size):
@@ -3481,7 +3545,6 @@ class Ui_uiMaster(object):
             pane = self.defaultPane
         pane.uiTabBar.currentChanged.emit(pane.uiTabBar.currentIndex())
 
-
     # Look at Maya's children and see if the widget we
     # want to restore is already there.
     #
@@ -3489,15 +3552,18 @@ class Ui_uiMaster(object):
         # remove number identifiers from end of name string
         # e.g. "outliner1" to "outliner"
         noNumName = name.rstrip("0123456789")
-        # Get child array NOW, so that references 
+        # Get child array NOW, so that references
         # are used while they are fresh!
         # "Internal c++ object deleted" = FATAL ERROR
         #
         for w in getMayaMainWindow().children():
             # invis or w.isVisible ensures that prelim call
             # only collects visible widgets, but later call gets all
-            if (w.isWidgetType() and w.windowTitle() in [noNumName, name]
-                                and (invis or w.isVisible())):
+            if (
+                w.isWidgetType()
+                and w.windowTitle() in [noNumName, name]
+                and (invis or w.isVisible())
+            ):
                 # maintain source if possible
                 if source[0] == "internal":
                     source = ("internal", w)
@@ -3506,11 +3572,9 @@ class Ui_uiMaster(object):
                     pane.widgToTab(w, w.windowTitle(), source)
                     return True
                 except:
-                    cmds.warning(
-                        "uiMaster: Error restoring {0} UI".format(name))
+                    cmds.warning("uiMaster: Error restoring {0} UI".format(name))
         else:
             return False
-
 
     # Go through different source types and load
     #
@@ -3520,10 +3584,10 @@ class Ui_uiMaster(object):
             # pane.addTab(source[1], True, name)
             f = source[1]
             if not os.path.exists(f):
-                # if absolute path is invalid, redefine as 
+                # if absolute path is invalid, redefine as
                 # current project directory + saved relative path
                 proj = cmds.workspace(q=True, rootDirectory=True)
-                f = os.path.normpath(proj+source[2]).replace(os.sep, os.altsep)
+                f = os.path.normpath(proj + source[2]).replace(os.sep, os.altsep)
             uis = self.uiFileHandler.getWidgets(None, [f], True, name)
             for x in uis:
                 # possibly problematic if there is more than one UI
@@ -3539,7 +3603,8 @@ class Ui_uiMaster(object):
             resolveDependencies("mel", source[2])
 
             cmds.cmdScrollFieldExecuter(
-                        self.scriptWin.melCmd, edit=True, text=source[1])
+                self.scriptWin.melCmd, edit=True, text=source[1]
+            )
             self.scriptWin.addWidgFromCode(True, pane)
         elif source[0] == "python":
             # re-run python command with self.scriptWin
@@ -3549,8 +3614,7 @@ class Ui_uiMaster(object):
             # check for file dependencies
             resolveDependencies("python", source[2])
 
-            cmds.cmdScrollFieldExecuter(
-                        self.scriptWin.pyCmd, edit=True, text=source[1])
+            cmds.cmdScrollFieldExecuter(self.scriptWin.pyCmd, edit=True, text=source[1])
             self.scriptWin.addWidgFromCode(True, pane)
         elif source[0] == "internal":
             # Consult nativeUiDict - list of the commands for all native UIs
@@ -3560,17 +3624,17 @@ class Ui_uiMaster(object):
                 cmd = nativeUiDict[niceName]
             except KeyError:
                 return
-            cmd = "catchQuiet(`"+cmd+"`)"
+            cmd = "catchQuiet(`" + cmd + "`)"
             # mel it
             if self.scriptWin.lang == "python":
                 self.scriptWin.changeLang()
-            cmds.cmdScrollFieldExecuter(
-                        self.scriptWin.melCmd, edit=True, text=cmd)
+            cmds.cmdScrollFieldExecuter(self.scriptWin.melCmd, edit=True, text=cmd)
             self.scriptWin.addWidgFromCode(True, pane)
         else:
-            cmds.warning("Unrecognized source found in previous "
-                        "session! Skipping {0}".format(name))
-
+            cmds.warning(
+                "Unrecognized source found in previous "
+                "session! Skipping {0}".format(name)
+            )
 
     # Open messagebox to ask about skipped UIs
     #
@@ -3578,22 +3642,22 @@ class Ui_uiMaster(object):
         win = QtWidgets.QMessageBox(getMayaMainWindow())
         win.setWindowTitle("Error restoring UIs")
         win.setIcon(QtWidgets.QMessageBox.Warning)
-        win.setText("Couldn't find valid sources for the "
-                    "following UIs: \n\n{0}\n\n"
-                    "Re-Source now?".format("\n".join(failedToLoad)))
-        win.addButton("Open file", 
-                        QtWidgets.QMessageBox.YesRole)
-        win.addButton("Enter command", 
-                        QtWidgets.QMessageBox.NoRole)
+        win.setText(
+            "Couldn't find valid sources for the "
+            "following UIs: \n\n{0}\n\n"
+            "Re-Source now?".format("\n".join(failedToLoad))
+        )
+        win.addButton("Open file", QtWidgets.QMessageBox.YesRole)
+        win.addButton("Enter command", QtWidgets.QMessageBox.NoRole)
         win.addButton("Ignore", QtWidgets.QMessageBox.RejectRole)
         win.exec_()
         choice = win.clickedButton().text()
         if choice == "Open file":
             self.addTab("manual")
         if choice == "Enter command":
-            self.openSecondaryWin(self.scriptWin, 
-                            self.actionScript_Window)
+            self.openSecondaryWin(self.scriptWin, self.actionScript_Window)
         win.setParent(None)
+
 
 """
 #----------------------------------------------------------------------
@@ -3602,17 +3666,17 @@ class Ui_uiMaster(object):
 
 
 
-8888888b.                             .d88888b.                        888                 
-888   Y88b                           d88P" "Y88b                       888                 
-888    888                           888     888                       888                 
-888   d88P 8888b. 88888b.  .d88b.    888     888888  888 .d88b. 888d888888 8888b. 888  888 
-8888888P"     "88b888 "88bd8P  Y8b   888     888888  888d8P  Y8b888P"  888    "88b888  888 
-888       .d888888888  88888888888   888     888Y88  88P88888888888    888.d888888888  888 
-888       888  888888  888Y8b.       Y88b. .d88P Y8bd8P Y8b.    888    888888  888Y88b 888 
-888       "Y888888888  888 "Y8888     "Y88888P"   Y88P   "Y8888 888    888"Y888888 "Y88888 
-                                                                                       888 
-                                                                                  Y8b d88P 
-                                                                                   "Y88P" 
+8888888b.                             .d88888b.                        888
+888   Y88b                           d88P" "Y88b                       888
+888    888                           888     888                       888
+888   d88P 8888b. 88888b.  .d88b.    888     888888  888 .d88b. 888d888888 8888b. 888  888
+8888888P"     "88b888 "88bd8P  Y8b   888     888888  888d8P  Y8b888P"  888    "88b888  888
+888       .d888888888  88888888888   888     888Y88  88P88888888888    888.d888888888  888
+888       888  888888  888Y8b.       Y88b. .d88P Y8bd8P Y8b.    888    888888  888Y88b 888
+888       "Y888888888  888 "Y8888     "Y88888P"   Y88P   "Y8888 888    888"Y888888 "Y88888
+                                                                                       888
+                                                                                  Y8b d88P
+                                                                                   "Y88P"
 
 
 #----------------------------------------------------------------------
@@ -3654,7 +3718,7 @@ class PaneOverlay(QtWidgets.QMainWindow):
         self.rowButton.clicked.connect(self.addRowAndUpdate)
 
     # Called whenever shown or a new row/pane is made.
-    # 
+    #
     def redraw(self):
         if not self.splitter:
             return
@@ -3671,7 +3735,7 @@ class PaneOverlay(QtWidgets.QMainWindow):
             x, y, w, h = self.getButtonGeo(but, rect, rows)
             but.move(x, y)
             but.resize(w, h)
-            #index = self.splitter.indexOf(row)
+            # index = self.splitter.indexOf(row)
             # problem: when called, EVERYTHING is behind. It's like
             # redraw is being called BEFORE the window's geometry is updated
 
@@ -3688,20 +3752,20 @@ class PaneOverlay(QtWidgets.QMainWindow):
             self.rowButton.setIconSize(QtCore.QSize(44, 40))
             self.rowButton.setIcon(self.newPaneIcon.scaled(44, 40))
         self.rowButton.move(x, y)
-        
+
         self.show()
 
     def getButtonGeo(self, but, rect, rows):
         if rows:
             x = rect.right() - 120
             w = 80
-            h = rect.height() * .75
+            h = rect.height() * 0.75
             y = rect.center().y() - (h / 2)
             but.setIconSize(QtCore.QSize(44, 40))
             but.setIcon(self.newPaneIcon.scaled(44, 40))
         else:
             y = rect.bottom() - 120
-            w = rect.width() * .75
+            w = rect.width() * 0.75
             h = 80
             x = rect.center().x() - (w / 2)
             but.setIconSize(QtCore.QSize(40, 44))
@@ -3725,30 +3789,31 @@ class PaneOverlay(QtWidgets.QMainWindow):
     def deleteButton(self, row):
         but = self.buttonDict.pop(row)
         but.setParent(None)
-        del(but)
+        del but
 
-    # Catch mouse presses so that the overlay hides when 
+    # Catch mouse presses so that the overlay hides when
     # the background is clicked (not a button)
     #
     def mousePressEvent(self, event):
         self.base.mousePressEvent(event)
         self.hide()
 
+
 """
 #----------------------------------------------------------------------
 
 
- .d8888b.                d8b        888   888       888d8b         
-d88P  Y88b               Y8P        888   888   o   888Y8P         
-Y88b.                               888   888  d8b  888            
- "Y888b.   .d8888b888d88888888888b. 888888888 d888b 88888888888b.  
-    "Y88b.d88P"   888P"  888888 "88b888   888d88888b888888888 "88b 
-      "888888     888    888888  888888   88888P Y88888888888  888 
-Y88b  d88PY88b.   888    888888 d88PY88b. 8888P   Y8888888888  888 
- "Y8888P"  "Y8888P888    88888888P"  "Y888888P     Y888888888  888 
-                            888                                    
-                            888                                    
-                            888         
+ .d8888b.                d8b        888   888       888d8b
+d88P  Y88b               Y8P        888   888   o   888Y8P
+Y88b.                               888   888  d8b  888
+ "Y888b.   .d8888b888d88888888888b. 888888888 d888b 88888888888b.
+    "Y88b.d88P"   888P"  888888 "88b888   888d88888b888888888 "88b
+      "888888     888    888888  888888   88888P Y88888888888  888
+Y88b  d88PY88b.   888    888888 d88PY88b. 8888P   Y8888888888  888
+ "Y8888P"  "Y8888P888    88888888P"  "Y888888P     Y888888888  888
+                            888
+                            888
+                            888
 
 #----------------------------------------------------------------------
 """
@@ -3777,7 +3842,9 @@ class Ui_ExecWin(object):
         self.langLabel.setObjectName("langLabel")
         self.horizontalLayout.addWidget(self.langLabel)
         self.langButton = QtWidgets.QPushButton(self.centralwidget)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.langButton.sizePolicy().hasHeightForWidth())
@@ -3787,39 +3854,39 @@ class Ui_ExecWin(object):
         self.verticalLayout.addLayout(self.horizontalLayout)
         self.stackedWidget = QtWidgets.QStackedWidget(self.centralwidget)
         self.stackedWidget.setObjectName("stackedWidget")
-        
+
         # make cmdsScrollFieldExecuter maya ui and get py obj of it
         # to yonik it
         #
         derWin = cmds.window()
-        derCol = cmds.columnLayout()
         self.cmdFilter = CmdFilter(self)
-        
-        self.pyCmd = cmds.cmdScrollFieldExecuter(st="python", 
-                            showTooltipHelp=False)#, objectPathCompletion=False)
+
+        self.pyCmd = cmds.cmdScrollFieldExecuter(
+            st="python", showTooltipHelp=False
+        )  # , objectPathCompletion=False)
         self.pyWidg = pm.ui.toQtObject(self.pyCmd)
         self.pyWidg.setObjectName("pyCmdWidget")
         self.pyWidg.setFixedHeight(124)
         self.pyWidg.setParent(self)
         self.stackedWidget.addWidget(self.pyWidg)
         self.pyWidg.installEventFilter(self.cmdFilter)
-        
+
         self.melCmd = cmds.cmdScrollFieldExecuter(st="mel")
-        self.melWidg = pm.ui.toQtObject(self.melCmd) 
+        self.melWidg = pm.ui.toQtObject(self.melCmd)
         self.melWidg.setObjectName("melCmdWidget")
         self.melWidg.setFixedHeight(124)
         self.melWidg.setParent(self)
         self.stackedWidget.addWidget(self.melWidg)
         self.melWidg.installEventFilter(self.cmdFilter)
-        
+
         self.verticalLayout.addWidget(self.stackedWidget)
         self.verticalLayout_2.addLayout(self.verticalLayout)
         execWin.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(execWin)
         QtCore.QMetaObject.connectSlotsByName(execWin)
-        
-        #custom
+
+        # custom
         self.setWindowFlags(QtCore.Qt.Popup)
         self.langButton.clicked.connect(self.changeLang)
         self.lang = "python"
@@ -3837,15 +3904,28 @@ class Ui_ExecWin(object):
         cmds.deleteUI(derWin)
 
     def retranslateUi(self, execWin):
-        execWin.setWindowTitle(QtWidgets.QApplication.translate("execWin", "Script Executer", None, -1))
-        self.label.setText(QtWidgets.QApplication.translate("execWin", "<html><head/><body><p>Any new windows created with this script box<br/>will be loaded into uiMaster</p><p>(execute with CTRL+E / numpad Enter)</p></body></html>", None, -1))
-        self.langLabel.setText(QtWidgets.QApplication.translate("execWin", "Python:", None, -1))
-        self.langButton.setText(QtWidgets.QApplication.translate("execWin", "Switch to MEL", None, -1))
-    
+        execWin.setWindowTitle(
+            QtWidgets.QApplication.translate("execWin", "Script Executer", None, -1)
+        )
+        self.label.setText(
+            QtWidgets.QApplication.translate(
+                "execWin",
+                "<html><head/><body><p>Any new windows created with this script box<br/>will be loaded into uiMaster</p><p>(execute with CTRL+E / numpad Enter)</p></body></html>",
+                None,
+                -1,
+            )
+        )
+        self.langLabel.setText(
+            QtWidgets.QApplication.translate("execWin", "Python:", None, -1)
+        )
+        self.langButton.setText(
+            QtWidgets.QApplication.translate("execWin", "Switch to MEL", None, -1)
+        )
+
     # Change the cmdScrollFieldExecuter box language - change page in stackedWidget
     #
     def changeLang(self):
-        
+
         if self.lang == "mel":
             self.lang = "python"
             self.langLabel.setText("Python:")
@@ -3861,7 +3941,6 @@ class Ui_ExecWin(object):
             self.melWidg.setFocus()
             self.parent().settingsWin.saveSettings("lang", "mel")
 
-    
     # Detect windows before and after code is run
     # by looking for new children of Maya
     # AND ones that are visible now but weren't before
@@ -3883,12 +3962,12 @@ class Ui_ExecWin(object):
         # edit cmd to include import/source statements
         # and dependencies is a list of files which are outside of path
         dependencies = getDependenciesInCode(self.lang, cmd)
-        
+
         for w in widgList:
-            # Shrug. I guess construction of the new object 
+            # Shrug. I guess construction of the new object
             # has a chance of not being complete by the time we get here
             # so sometimes QObjects make it through to here
-            #if not w.isWidgetType():
+            # if not w.isWidgetType():
             #    continue
             name = w.windowTitle()
             if pane:
@@ -3897,7 +3976,6 @@ class Ui_ExecWin(object):
                 p = par.findBestPane()
 
             p.widgToTab(w, name, (self.lang, cmd, dependencies))
-
 
     # Actually execute code, return cmd
     #
@@ -3910,16 +3988,14 @@ class Ui_ExecWin(object):
             if self.lang == "python":
                 cmd = self.pyWidg.toPlainText()
                 pos = self.pyWidg.textCursor()
-                cmds.cmdScrollFieldExecuter(
-                        self.pyCmd, edit=True, execute=True)
+                cmds.cmdScrollFieldExecuter(self.pyCmd, edit=True, execute=True)
                 if not quiet:
                     self.pyWidg.setText(cmd)
                     self.pyWidg.setTextCursor(pos)
             elif self.lang == "mel":
                 cmd = self.melWidg.toPlainText()
                 pos = self.melWidg.textCursor()
-                cmds.cmdScrollFieldExecuter(
-                        self.melCmd, edit=True, execute=True)
+                cmds.cmdScrollFieldExecuter(self.melCmd, edit=True, execute=True)
                 if not quiet:
                     self.melWidg.setText(cmd)
                     self.melWidg.setTextCursor(pos)
@@ -3929,22 +4005,21 @@ class Ui_ExecWin(object):
         return cmd
 
 
-
 """
 #----------------------------------------------------------------------
 
 
- .d8888b.         888   888   d8b                        888       888d8b         
-d88P  Y88b        888   888   Y8P                        888   o   888Y8P         
-Y88b.             888   888                              888  d8b  888            
- "Y888b.   .d88b. 88888888888888888888b.  .d88b. .d8888b 888 d888b 88888888888b.  
-    "Y88b.d8P  Y8b888   888   888888 "88bd88P"88b88K     888d88888b888888888 "88b 
-      "88888888888888   888   888888  888888  888"Y8888b.88888P Y88888888888  888 
-Y88b  d88PY8b.    Y88b. Y88b. 888888  888Y88b 888     X888888P   Y8888888888  888 
- "Y8888P"  "Y8888  "Y888 "Y888888888  888 "Y88888 88888P'888P     Y888888888  888 
-                                              888                                 
-                                         Y8b d88P                                 
-                                          "Y88P"  
+ .d8888b.         888   888   d8b                        888       888d8b
+d88P  Y88b        888   888   Y8P                        888   o   888Y8P
+Y88b.             888   888                              888  d8b  888
+ "Y888b.   .d88b. 88888888888888888888b.  .d88b. .d8888b 888 d888b 88888888888b.
+    "Y88b.d8P  Y8b888   888   888888 "88bd88P"88b88K     888d88888b888888888 "88b
+      "88888888888888   888   888888  888888  888"Y8888b.88888P Y88888888888  888
+Y88b  d88PY8b.    Y88b. Y88b. 888888  888Y88b 888     X888888P   Y8888888888  888
+ "Y8888P"  "Y8888  "Y888 "Y888888888  888 "Y88888 88888P'888P     Y888888888  888
+                                              888
+                                         Y8b d88P
+                                          "Y88P"
 
 #----------------------------------------------------------------------
 """
@@ -3953,7 +4028,9 @@ class Ui_settingsWin(object):
     def setupUi(self, settingsWin):
         settingsWin.setObjectName("settingsWin")
         settingsWin.resize(300, 180)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(settingsWin.sizePolicy().hasHeightForWidth())
@@ -3971,7 +4048,7 @@ class Ui_settingsWin(object):
         self.updateButton.setObjectName("updateButton")
         self.updateLayout.addWidget(self.updateButton)
         self.verticalLayout.addLayout(self.updateLayout)
-        
+
         self.mode = QtWidgets.QGroupBox(self.centralwidget)
         self.mode.setObjectName("mode")
         self.gridLayout_3 = QtWidgets.QGridLayout(self.mode)
@@ -3995,7 +4072,7 @@ class Ui_settingsWin(object):
         self.columnMode.setObjectName("columnMode")
         self.gridLayout_4.addWidget(self.columnMode, 0, 1, 2, 2)
         self.gridLayout_3.addWidget(self.paneLayout, 1, 0, 2, 3)
-        #self.verticalLayout.addWidget(self.paneLayout)        
+        # self.verticalLayout.addWidget(self.paneLayout)
 
         self.autoOpenCheck = QtWidgets.QCheckBox(self.centralwidget)
         self.autoOpenCheck.setObjectName("autoOpenCheck")
@@ -4014,7 +4091,7 @@ class Ui_settingsWin(object):
         self.hotkeyCheck = QtWidgets.QCheckBox(self.centralwidget)
         self.hotkeyCheck.setObjectName("hotkeyCheck")
         self.verticalLayout.addWidget(self.hotkeyCheck)
-        
+
         self.defaultUIs = QtWidgets.QGroupBox(self.centralwidget)
         self.defaultUIs.setObjectName("defaultUIs")
         self.gridLayout = QtWidgets.QGridLayout(self.defaultUIs)
@@ -4025,7 +4102,7 @@ class Ui_settingsWin(object):
         self.delButton = QtWidgets.QPushButton(self.centralwidget)
         self.delButton.setObjectName("delButton")
         self.gridLayout.addWidget(self.delButton, 0, 1, 2, 2)
-        
+
         self.dockable = QtWidgets.QGroupBox(self.centralwidget)
         self.dockable.setObjectName("dockable")
         self.gridLayout_2 = QtWidgets.QGridLayout(self.dockable)
@@ -4057,71 +4134,128 @@ class Ui_settingsWin(object):
 
         self.retranslateUi(settingsWin)
         QtCore.QMetaObject.connectSlotsByName(settingsWin)
-        
+
         # custom
         self.setWindowFlags(QtCore.Qt.Popup)
         self.pushButton.clicked.connect(self.close)
-        self.prefs = cmds.internalVar(upd=True)+"uiMasterPrefs.ini"
-        self.dockAreas = {"leftCheck": 0, "rightCheck": 0,
-                            "topCheck": 0, "bottomCheck": 0}
+        self.prefs = cmds.internalVar(upd=True) + "uiMasterPrefs.ini"
+        self.dockAreas = {
+            "leftCheck": 0,
+            "rightCheck": 0,
+            "topCheck": 0,
+            "bottomCheck": 0,
+        }
 
         # Connect signals
         self.updateButton.clicked.connect(selfUpdate)
         self.tabMode.toggled.connect(self.parent().setTabMode)
         self.paneMode.toggled.connect(self.parent().setPaneMode)
         self.rowMode.toggled.connect(self.parent().setRowMode)
-        self.columnMode.toggled.connect(
-                        partial(self.saveSettings, "columnMode"))
+        self.columnMode.toggled.connect(partial(self.saveSettings, "columnMode"))
         self.autoOpenCheck.toggled.connect(self.setAutoOpen)
-        self.resizeCheck.toggled.connect(
-                        partial(self.saveSettings, "resizeCheck"))
-        #self.focusCheck.toggled.connect(
+        self.resizeCheck.toggled.connect(partial(self.saveSettings, "resizeCheck"))
+        # self.focusCheck.toggled.connect(
         #                partial(self.saveSettings, "focusCheck"))
-        self.disperseCheck.toggled.connect(
-                        partial(self.saveSettings, "disperseCheck"))
-        self.hotkeyCheck.toggled.connect(
-                        partial(self.toggleHotkeys, "hotkeyCheck"))
+        self.disperseCheck.toggled.connect(partial(self.saveSettings, "disperseCheck"))
+        self.hotkeyCheck.toggled.connect(partial(self.toggleHotkeys, "hotkeyCheck"))
         self.leftCheck.toggled.connect(
-                        partial(self.setDockAreas, "leftCheck",
-                        QtCore.Qt.LeftDockWidgetArea))
+            partial(self.setDockAreas, "leftCheck", QtCore.Qt.LeftDockWidgetArea)
+        )
         self.rightCheck.toggled.connect(
-                        partial(self.setDockAreas, "rightCheck",
-                        QtCore.Qt.RightDockWidgetArea))
+            partial(self.setDockAreas, "rightCheck", QtCore.Qt.RightDockWidgetArea)
+        )
         self.topCheck.toggled.connect(
-                        partial(self.setDockAreas, "topCheck",
-                        QtCore.Qt.TopDockWidgetArea))
+            partial(self.setDockAreas, "topCheck", QtCore.Qt.TopDockWidgetArea)
+        )
         self.bottomCheck.toggled.connect(
-                        partial(self.setDockAreas, "bottomCheck",
-                        QtCore.Qt.BottomDockWidgetArea))
+            partial(self.setDockAreas, "bottomCheck", QtCore.Qt.BottomDockWidgetArea)
+        )
         self.saveButton.clicked.connect(self.saveDefaultState)
         self.delButton.clicked.connect(self.deleteDefaultState)
-    
 
     def retranslateUi(self, settingsWin):
-        settingsWin.setWindowTitle(QtWidgets.QApplication.translate("settingsWin", "Settings", None, -1))
-        self.updateButton.setText(QtWidgets.QApplication.translate("settingsWin", "Update uiMaster", None, -1))
-        self.mode.setTitle(QtWidgets.QApplication.translate("settingsWin", "UI display mode", None, -1))
-        self.tabMode.setText(QtWidgets.QApplication.translate("settingsWin", "Tabs Mode", None, -1))
-        self.paneMode.setText(QtWidgets.QApplication.translate("settingsWin", "Panes Mode", None, -1))
-        self.paneLayout.setTitle(QtWidgets.QApplication.translate("settingsWin", "Pane Layout", None, -1))
-        self.rowMode.setText(QtWidgets.QApplication.translate("settingsWin", "Rows", None, -1))
-        self.columnMode.setText(QtWidgets.QApplication.translate("settingsWin", "Columns", None, -1))
-        self.autoOpenCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Open uiMaster on startup", None, -1))
-        self.resizeCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Auto-resize (Tab Mode)", None, -1))
-        #self.focusCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Mouseover Focus", None, -1))
-        self.disperseCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Disperse windows when closed", None, -1))
-        self.hotkeyCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Hotkeys: RMB + 1-8 to change tabs\n"+" "*15+"RMB + Spacebar to show/hide", None, -1))
-        self.defaultUIs.setTitle(QtWidgets.QApplication.translate("settingsWin", "Open default UIs on creation", None, -1))
-        self.saveButton.setText(QtWidgets.QApplication.translate("settingsWin", "Set Current as Default", None, -1))
-        self.delButton.setText(QtWidgets.QApplication.translate("settingsWin", "Delete Default", None, -1))
-        self.dockable.setTitle(QtWidgets.QApplication.translate("settingsWin", "Dockable", None, -1))
-        self.leftCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Left", None, -1))
-        self.rightCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Right", None, -1))
-        self.topCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Top", None, -1))
-        self.bottomCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Bottom", None, -1))
-        self.pushButton.setText(QtWidgets.QApplication.translate("settingsWin", "Ok", None, -1))
-    
-    
+        settingsWin.setWindowTitle(
+            QtWidgets.QApplication.translate("settingsWin", "Settings", None, -1)
+        )
+        self.updateButton.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Update uiMaster", None, -1)
+        )
+        self.mode.setTitle(
+            QtWidgets.QApplication.translate("settingsWin", "UI display mode", None, -1)
+        )
+        self.tabMode.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Tabs Mode", None, -1)
+        )
+        self.paneMode.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Panes Mode", None, -1)
+        )
+        self.paneLayout.setTitle(
+            QtWidgets.QApplication.translate("settingsWin", "Pane Layout", None, -1)
+        )
+        self.rowMode.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Rows", None, -1)
+        )
+        self.columnMode.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Columns", None, -1)
+        )
+        self.autoOpenCheck.setText(
+            QtWidgets.QApplication.translate(
+                "settingsWin", "Open uiMaster on startup", None, -1
+            )
+        )
+        self.resizeCheck.setText(
+            QtWidgets.QApplication.translate(
+                "settingsWin", "Auto-resize (Tab Mode)", None, -1
+            )
+        )
+        # self.focusCheck.setText(QtWidgets.QApplication.translate("settingsWin", "Mouseover Focus", None, -1))
+        self.disperseCheck.setText(
+            QtWidgets.QApplication.translate(
+                "settingsWin", "Disperse windows when closed", None, -1
+            )
+        )
+        self.hotkeyCheck.setText(
+            QtWidgets.QApplication.translate(
+                "settingsWin",
+                "Hotkeys: RMB + 1-8 to change tabs\n"
+                + " " * 15
+                + "RMB + Spacebar to show/hide",
+                None,
+                -1,
+            )
+        )
+        self.defaultUIs.setTitle(
+            QtWidgets.QApplication.translate(
+                "settingsWin", "Open default UIs on creation", None, -1
+            )
+        )
+        self.saveButton.setText(
+            QtWidgets.QApplication.translate(
+                "settingsWin", "Set Current as Default", None, -1
+            )
+        )
+        self.delButton.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Delete Default", None, -1)
+        )
+        self.dockable.setTitle(
+            QtWidgets.QApplication.translate("settingsWin", "Dockable", None, -1)
+        )
+        self.leftCheck.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Left", None, -1)
+        )
+        self.rightCheck.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Right", None, -1)
+        )
+        self.topCheck.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Top", None, -1)
+        )
+        self.bottomCheck.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Bottom", None, -1)
+        )
+        self.pushButton.setText(
+            QtWidgets.QApplication.translate("settingsWin", "Ok", None, -1)
+        )
+
     # Change dock areas
     #
     def setDockAreas(self, name, area, state):
@@ -4133,10 +4267,12 @@ class Ui_settingsWin(object):
         # assumes that self.parent().parent() is the dockwidget
         # created by makeUiMaster ... perhaps bad
         self.parent().parent().setAllowedAreas(
-                    self.dockAreas["leftCheck"] | self.dockAreas["rightCheck"] |
-                    self.dockAreas["topCheck"] | self.dockAreas["bottomCheck"])
+            self.dockAreas["leftCheck"]
+            | self.dockAreas["rightCheck"]
+            | self.dockAreas["topCheck"]
+            | self.dockAreas["bottomCheck"]
+        )
         self.saveSettings(name, state)
-    
 
     # Install/remove hotkey event filter
     #
@@ -4151,13 +4287,11 @@ class Ui_settingsWin(object):
             self.parent().mainSplitter.removeEventFilter(par.hotkeyFilter)
         self.saveSettings(name, state)
 
-
     # script that puts stuff in userSetup.mel -
     # triggered by a new setting "Open on startup",
     #
     def setAutoOpen(self, state):
-        setupCmd = (
-"""import maya.cmds as cmds
+        setupCmd = """import maya.cmds as cmds
 
 n = cmds.internalVar(upd=True)+"pluginPrefs.mel"
 cmd = ("evalDeferred(\\\"if (`pluginInfo -q -l \\\\\\\"uiMaster\\\\\\\"`)"
@@ -4166,9 +4300,9 @@ with open(n, "a+") as f:
     contents = f.read()
     if cmd not in contents:
         f.seek(0)
-        f.write("\\n\\n"+cmd)""")
+        f.write("\\n\\n"+cmd)"""
 
-        n = cmds.internalVar(usd=True)+"userSetup.py"
+        n = cmds.internalVar(usd=True) + "userSetup.py"
         # first, ensure file exists
         # and get contents
         with open(n, "a+") as f:
@@ -4176,16 +4310,15 @@ with open(n, "a+") as f:
         contents = contents.replace(setupCmd, "")
         lines = [x for x in contents.split("\n") if x]
 
-        if state:  
+        if state:
             lines.append(setupCmd)
             cmds.pluginInfo("uiMaster", e=True, a=True)
         contents = "\n".join(lines)
         with open(n, "w") as f:
             f.write(contents)
-            
+
         self.saveSettings("autoOpenCheck", state)
 
-    
     # Run whenever any setting is changed
     #
     def saveSettings(self, name, state):
@@ -4194,14 +4327,13 @@ with open(n, "a+") as f:
         if type(state) is bool:
             state = int(state)
         qSet.setValue(name, state)
-    
-    
+
     # On startup, load previous QSettings
     #
     def restoreSettings(self):
         qSet = QtCore.QSettings(self.prefs, QtCore.QSettings.IniFormat)
         qSet.setIniCodec("UTF-8")
-        # Set to whether saved value == "true", 
+        # Set to whether saved value == "true",
         # to get around silly auto-decapitalization
         # performed by qSettings
         dock = self.parent().parent()
@@ -4211,7 +4343,7 @@ with open(n, "a+") as f:
         self.columnMode.setChecked(bool(qSet.value("columnMode", 0)))
         self.autoOpenCheck.setChecked(bool(qSet.value("autoOpenCheck", 0)))
         self.resizeCheck.setChecked(bool(qSet.value("resizeCheck", 1)))
-        #self.focusCheck.setChecked(
+        # self.focusCheck.setChecked(
         #            qSet.value("focusCheck", "false") == "true")
         self.disperseCheck.setChecked(bool(qSet.value("disperseCheck", 1)))
         self.hotkeyCheck.setChecked(bool(qSet.value("hotkeyCheck", 1)))
@@ -4221,16 +4353,17 @@ with open(n, "a+") as f:
         self.bottomCheck.setChecked(bool(qSet.value("bottomCheck", 0)))
 
         self.parent().addToolBar(
-                    QtCore.Qt.ToolBarArea(int(qSet.value("toolBarArea", 4))),
-                    self.parent().toolBar)
+            QtCore.Qt.ToolBarArea(int(qSet.value("toolBarArea", 4))),
+            self.parent().toolBar,
+        )
         """getMayaMainWindow().addDockWidget(
                     QtCore.Qt.DockWidgetArea(int(qSet.value("dockArea", 0))),
                     dock)"""
         area = bool(qSet.value("dockArea", 0))
         pos = {1: "left", 2: "right", 4: "top", 8: "bottom"}
         if area:
-            # Gotta do it the Maya way with cmds, or else it 
-            # splits the dock area in half 
+            # Gotta do it the Maya way with cmds, or else it
+            # splits the dock area in half
             # PySide bug (?)
             cmds.dockControl(self.parent().mayaName, edit=True, area=pos[area])
         dock.setFloating(bool(qSet.value("floating", 1)))
@@ -4240,45 +4373,44 @@ with open(n, "a+") as f:
             self.parent().scriptWin.changeLang()
         self.parent().setRowMode(self.rowMode.isChecked())
 
-    
     # User can save a default state which uiMaster opens with
     # if there is no saved state. Accessed through settings menu.
     #
     def saveDefaultState(self):
-        self.saveSettings("defaultUIs", 
-                        cmds.getAttr(self.parent().tabsNode+".before"))
-
+        self.saveSettings(
+            "defaultUIs", cmds.getAttr(self.parent().tabsNode + ".before")
+        )
 
     # Reset saved value for defaultUIs to nothing
     #
     def deleteDefaultState(self):
         self.saveSettings("defaultUIs", "[]")
 
-
-    # Auto-called if tabsNode doesn't exist, restores the 
+    # Auto-called if tabsNode doesn't exist, restores the
     # previously set default UIs
     #
     def restoreDefaultState(self):
         qSet = QtCore.QSettings(self.prefs, QtCore.QSettings.IniFormat)
         qSet.setIniCodec("UTF-8")
-        # Simplest way to do it is just take advantage of 
+        # Simplest way to do it is just take advantage of
         # existing state management
         uiList = eval(qSet.value("defaultUIs", "[]"))
         if uiList:
             self.parent().restoreSavedState(uiList)
 
+
 """
 #----------------------------------------------------------------------
 
 
-8888888         .d888        888       888d8b         
-  888          d88P"         888   o   888Y8P         
-  888          888           888  d8b  888            
-  888  88888b. 888888 .d88b. 888 d888b 88888888888b.  
-  888  888 "88b888   d88""88b888d88888b888888888 "88b 
-  888  888  888888   888  88888888P Y88888888888  888 
-  888  888  888888   Y88..88P8888P   Y8888888888  888 
-8888888888  888888    "Y88P" 888P     Y888888888  888 
+8888888         .d888        888       888d8b
+  888          d88P"         888   o   888Y8P
+  888          888           888  d8b  888
+  888  88888b. 888888 .d88b. 888 d888b 88888888888b.
+  888  888 "88b888   d88""88b888d88888b888888888 "88b
+  888  888  888888   888  88888888P Y88888888888  888
+  888  888  888888   Y88..88P8888P   Y8888888888  888
+8888888888  888888    "Y88P" 888P     Y888888888  888
 
 
 #----------------------------------------------------------------------
@@ -4297,79 +4429,96 @@ class Ui_infoWin(object):
         self.label.setObjectName("label")
         self.verticalLayout.addWidget(self.label)
         infoWin.setCentralWidget(self.centralwidget)
-        infoWin.setWindowTitle(QtWidgets.QApplication.translate("infoWin", "Software Info", None, -1))
-        self.label.setText(QtWidgets.QApplication.translate("infoWin", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
-"<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
-"p, li { white-space: pre-wrap; }\n"
-"</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:8pt; font-weight:400; font-style:normal;\">\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-weight:600;\">"+__title__+"</span></p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">Version: "+__version__+"</p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">Author: "+__author__+"</p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">email: "+__email__+"</p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">Copyright &copy; "+__copyYear__+" "+__author__+"</p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">All rights reserved</p>\n"
-"<p style=\" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">... or something</p></body></html>", None, -1))
+        infoWin.setWindowTitle(
+            QtWidgets.QApplication.translate("infoWin", "Software Info", None, -1)
+        )
+        self.label.setText(
+            QtWidgets.QApplication.translate(
+                "infoWin",
+                '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd">\n'
+                '<html><head><meta name="qrichtext" content="1" /><style type="text/css">\n'
+                "p, li { white-space: pre-wrap; }\n"
+                "</style></head><body style=\" font-family:'MS Shell Dlg 2'; font-size:8pt; font-weight:400; font-style:normal;\">\n"
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" font-weight:600;">'
+                + __title__
+                + "</span></p>\n"
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Version: '
+                + __version__
+                + "</p>\n"
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Author: '
+                + __author__
+                + "</p>\n"
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">email: '
+                + __email__
+                + "</p>\n"
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>\n'
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Copyright &copy; '
+                + __copyYear__
+                + " "
+                + __author__
+                + "</p>\n"
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">All rights reserved</p>\n'
+                '<p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">... or something</p></body></html>',
+                None,
+                -1,
+            )
+        )
 
         QtCore.QMetaObject.connectSlotsByName(infoWin)
         self.setWindowFlags(QtCore.Qt.Popup)
 
 
-
-
-
-#----------------------------------------------------------------------
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # Make it a plugin!
 #
-
 
 
 # Dictionary of name: creation command
 # Some of these are dock controls instead of windows...
 # will have to think of something for those
-nativeUiDict = {"Attribute Editor": "AttributeEditor",
-                "Outliner": "OutlinerWindow",
-                "Node Editor": "NodeEditorWindow",
-                "Create Node": "CreateNodeWindow",
-                "Hypergraph Heirarchy": "HypergraphWindow",
-                "Hypergraph InputOutput": "HypergraphWindow",
-                "Paint Effects": "PaintEffectsWindow",
-                "UV Texture Editor": "TextureViewWindow",
-                "Component Editor": "ComponentEditor",
-                "Attribute Spread Sheet": "SpreadSheetEditor",
-                "Connection Editor": "ConnectionEditor",
-                "Visor": "VisorWindow",
-                "Asset Editor": "AssetEditor",
-                "Namespace Editor": "NamespaceEditor",
-                "File Path Editor": "FilePathEditor",
-                "Channel Control": "ChannelControlEditor",
-                "Script Editor": "ScriptEditor",
-                "Command Shell": "CommandShell",
-                "Render View": "RenderViewWindow",
-                "Render Settings": "unifiedRenderGlobalsWindow",
-                "Hypershade": "HypershadeWindow",
-                
-                "Rendering Flags": "RenderFlagsWindow",
-                "Hardware Render Buffer": "HardwareRenderBuffer",
-                "Graph Editor": "GraphEditor",
-                "Trax Editor": "CharacterAnimationEditor",
-                "Camera Sequencer": "SequenceEditor",
-                "Dope Sheet": "DopeSheetEditor",
-                "Character Controls": "HIKCharacterControlsTool",
-                "Blend Shape": "BlendShapeEditor",
-                "Expression Editor": "ExpressionEditor",
-                "Relationship Editor": "SetEditor",
-                "Dynamic Relationships Editor": "DynamicRelationshipEditor",
-                "Tool Settings": "ToolSettingsWindow",
-                "Channel Box": "ToggleChannelBox",
-                "Layer Editor": "ToggleLayerBar",
-                "Channel Box / Layer Editor": "ToggleChannelsLayers"}
-
+nativeUiDict = {
+    "Attribute Editor": "AttributeEditor",
+    "Outliner": "OutlinerWindow",
+    "Node Editor": "NodeEditorWindow",
+    "Create Node": "CreateNodeWindow",
+    "Hypergraph Heirarchy": "HypergraphWindow",
+    "Hypergraph InputOutput": "HypergraphWindow",
+    "Paint Effects": "PaintEffectsWindow",
+    "UV Texture Editor": "TextureViewWindow",
+    "Component Editor": "ComponentEditor",
+    "Attribute Spread Sheet": "SpreadSheetEditor",
+    "Connection Editor": "ConnectionEditor",
+    "Visor": "VisorWindow",
+    "Asset Editor": "AssetEditor",
+    "Namespace Editor": "NamespaceEditor",
+    "File Path Editor": "FilePathEditor",
+    "Channel Control": "ChannelControlEditor",
+    "Script Editor": "ScriptEditor",
+    "Command Shell": "CommandShell",
+    "Render View": "RenderViewWindow",
+    "Render Settings": "unifiedRenderGlobalsWindow",
+    "Hypershade": "HypershadeWindow",
+    "Rendering Flags": "RenderFlagsWindow",
+    "Hardware Render Buffer": "HardwareRenderBuffer",
+    "Graph Editor": "GraphEditor",
+    "Trax Editor": "CharacterAnimationEditor",
+    "Camera Sequencer": "SequenceEditor",
+    "Dope Sheet": "DopeSheetEditor",
+    "Character Controls": "HIKCharacterControlsTool",
+    "Blend Shape": "BlendShapeEditor",
+    "Expression Editor": "ExpressionEditor",
+    "Relationship Editor": "SetEditor",
+    "Dynamic Relationships Editor": "DynamicRelationshipEditor",
+    "Tool Settings": "ToolSettingsWindow",
+    "Channel Box": "ToggleChannelBox",
+    "Layer Editor": "ToggleLayerBar",
+    "Channel Box / Layer Editor": "ToggleChannelsLayers",
+}
 
 
 # safety check
-# & is finding which BITS the two items have in common, so this is a 
+# & is finding which BITS the two items have in common, so this is a
 # very sturdy check for if a widget is popup-ish
 """
 
@@ -4382,7 +4531,7 @@ def focusOutEvent(self, event):
     isSelf = newF is self
 
     # investigate new focus - is it window, and REAL window at that?
-    if (newF.isWindow() 
+    if (newF.isWindow()
             and newF.windowType() not in [QtCore.Qt.Popup, QtCore.Qt.ToolTip]
             and not (newF.windowFlags() & QtCore.Qt.FramelessWindowHint)):
         print("Real window.")
