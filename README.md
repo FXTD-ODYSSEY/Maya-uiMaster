@@ -15,3 +15,5 @@ Then you can launch the window with a mel command.
 from maya import cmds
 cmds.uiMaster()
 ```
+
+![demo](/img/demo.png)
