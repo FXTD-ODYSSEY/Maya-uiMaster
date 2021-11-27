@@ -149,8 +149,8 @@ gui_list = [
 
 
 def main():
-    target = os.path.join(DIR, "uiMaster.py")
-    output = os.path.join(DIR, "uiMaster2.py")
+    target = os.path.join(DIR, "uiMaster_source.py")
+    output = os.path.join(DIR, "uiMaster.py")
     lines = []
     with open(target, "r") as f:
         for i, l in enumerate(f.readlines()):
